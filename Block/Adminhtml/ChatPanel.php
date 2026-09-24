@@ -95,6 +95,7 @@ class ChatPanel extends Template
             'addonsUrl' => $this->configRepository->isAddonFeedEnabled()
                 ? $this->getUrl('mago/chat/addons')
                 : '',
+            'flagUrl' => $this->getUrl('mago/chat/flag'),
             'statusUrl' => $this->getUrl('mago/chat/status'),
             'apiBaseUrl' => $this->getUrl('rest/V1/assistant'),
             'isStreamingEnabled' => $this->configRepository->isStreamingEnabled(),
@@ -159,6 +160,17 @@ class ChatPanel extends Template
             '%1 is working…',
             'New available add-ons',
             'All add-ons',
+            'Flag this answer',
+            'Remove flag',
+            'What is wrong with this answer?',
+            'It said the order was shipped, but it was not',
+            'Flag',
+            'Wrong information',
+            'Did not do what I asked',
+            'Missing something',
+            'Flagged. Review it under Flagged Answers.',
+            'Flag removed.',
+            'Could not flag this answer.',
         ];
 
         return array_combine($sentences, array_map(static fn (string $sentence): string => (string)__($sentence), $sentences));
