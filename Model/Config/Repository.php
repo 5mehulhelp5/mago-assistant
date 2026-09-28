@@ -90,6 +90,13 @@ class Repository extends System\BaseRepository implements ConfigRepositoryInterf
         return ctype_digit($value) ? (int)$value : 30;
     }
 
+    public function getHistoryRetentionDays(): int
+    {
+        // Non-numeric/negative config falls back to 90 rather than failing open to keep-forever
+        $value = $this->getStoreValue(self::XML_PATH_HISTORY_RETENTION_DAYS);
+        return ctype_digit($value) ? (int)$value : 90;
+    }
+
     public function getAiServiceId(): string
     {
         return trim((string)$this->getStoreValue(self::XML_PATH_AI_SERVICE));
@@ -121,6 +128,18 @@ class Repository extends System\BaseRepository implements ConfigRepositoryInterf
     public function getMaxResponseTokens(): int
     {
         return (int)($this->getStoreValue(self::XML_PATH_MAX_RESPONSE_TOKENS) ?: 4000);
+    }
+
+    public function isReindexAllowed(): bool
+    {
+        return $this->isSetFlag(self::XML_PATH_ALLOW_REINDEX);
+    }
+
+    public function getCustomerNotificationInterval(): int
+    {
+        // Non-numeric config falls back to 60 rather than failing open to unlimited e-mail
+        $value = $this->getStoreValue(self::XML_PATH_CUSTOMER_NOTIFICATION_INTERVAL);
+        return ctype_digit($value) ? (int)$value : 60;
     }
 
     public function getAccentColor(): string

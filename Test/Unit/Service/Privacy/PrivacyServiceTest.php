@@ -171,6 +171,56 @@ class PrivacyServiceTest extends TestCase
         self::assertStringNotContainsString($token, $emitted);
     }
 
+    /**
+     * A chunk can end on the bare "m" a token starts with; that "m" has to be held back as well,
+     * or the rest of the token goes out on its own and is never rehydrated.
+     */
+    #[Test]
+    public function aTokenCutRightAfterItsFirstLetterIsStillRehydrated(): void
+    {
+        $vault = new ConversationVault();
+        $service = $this->service($vault);
+        $name = $vault->tokenise('Luuk van der Berg', 'name');
+
+        $emitted = '';
+        $carry = '';
+        foreach (['{"title":"m', 'ago://name', '_1"}'] as $delta) {
+            [$text, $carry] = $service->rehydrateStreamDelta($carry, $delta);
+            $emitted .= $text;
+        }
+        $emitted .= $service->displayText($carry);
+
+        self::assertSame('{"title":"Luuk van der Berg"}', $emitted);
+        self::assertStringNotContainsString($name, $emitted);
+    }
+
+    /**
+     * A widget block carries several tokens; whatever chunk size the provider picks, none of them
+     * may reach the admin tokenised.
+     */
+    #[Test]
+    public function everyTokenInAStreamedWidgetIsRehydratedWhateverTheChunkSize(): void
+    {
+        $vault = new ConversationVault();
+        $service = $this->service($vault);
+        $name = $vault->tokenise('Luuk van der Berg', 'name');
+        $url = $vault->tokenise('https://shop.test/admin/customer/index/edit/id/2/key/abc/', 'url');
+        $answer = "Top:\n\n```mago\n" . '{"type":"entityList","items":[{"title":"' . $name . '","href":"' . $url
+            . '"}]}' . "\n```";
+
+        foreach (range(1, 12) as $size) {
+            $emitted = '';
+            $carry = '';
+            foreach (str_split($answer, $size) as $delta) {
+                [$text, $carry] = $service->rehydrateStreamDelta($carry, $delta);
+                $emitted .= $text;
+            }
+            $emitted .= $service->displayText($carry);
+
+            self::assertSame($service->displayText($answer), $emitted, "Chunk size {$size}");
+        }
+    }
+
     #[Test]
     public function itDetectsATokenInWriteArgumentsSoAWriteCanBeRefused(): void
     {
