@@ -20,6 +20,7 @@
             </chat>
             <tools>
                 <max_response_tokens>4000</max_response_tokens>
+                <allow_reindex>0</allow_reindex>
                 <customer_notification_interval>60</customer_notification_interval>
             </tools>
             <debug>
