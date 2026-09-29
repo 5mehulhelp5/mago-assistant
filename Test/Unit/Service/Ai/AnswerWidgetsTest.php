@@ -23,9 +23,9 @@ final class AnswerWidgetsTest extends TestCase
     private const PANEL_TYPES = [
         'stat', 'stats', 'sparkline', 'meter', 'ring', 'composition', 'rankedBars', 'columns', 'lines',
         'stackedColumns', 'heatmap', 'funnel', 'entityList', 'table', 'record', 'confirmWrite', 'toolTrace',
-        'callout', 'suggestions', 'answerFooter', 'empty', 'skeleton', 'skillAsk', 'skillRunning', 'skillLine',
-        'skillFailed', 'readLine', 'skillIrreversible', 'skillBulk', 'skillPlan', 'paramPrompt', 'undoCallout',
-        'sessionLog', 'skillMenu',
+        'callout', 'suggestions', 'choices', 'answerFooter', 'empty', 'skeleton', 'skillAsk', 'skillRunning',
+        'skillLine', 'skillFailed', 'readLine', 'skillIrreversible', 'skillBulk', 'skillPlan', 'paramPrompt',
+        'undoCallout', 'sessionLog', 'skillMenu',
     ];
 
     #[Test]
@@ -127,6 +127,18 @@ final class AnswerWidgetsTest extends TestCase
         $this->answerWidgets(['stockAlert' => '{"type":"stockAlert"} — a product about to sell out.'], $logger);
 
         self::assertSame([], $logger->getMessages());
+    }
+
+    #[Test]
+    public function itTeachesChoicesForAQuestionTooVagueToAnswer(): void
+    {
+        $section = $this->answerWidgets()->toPromptSection();
+
+        self::assertContains('choices', $this->answerWidgets()->getTypes());
+        self::assertStringContainsString('question too vague to answer', $section);
+        self::assertStringContainsString('"other":"<something else>"', $section);
+        self::assertStringContainsString('in the language of your answer', $section);
+        self::assertStringContainsString('always offer the readings as a "choices" widget', $section);
     }
 
     #[Test]
