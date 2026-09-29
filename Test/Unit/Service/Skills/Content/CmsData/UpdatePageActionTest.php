@@ -9,6 +9,7 @@ namespace MagoAssistant\Mago\Test\Unit\Service\Skills\Content\CmsData;
 use MagoAssistant\Mago\Service\Api\InternalApiClient;
 use MagoAssistant\Mago\Service\Skills\Content\CmsData\GetPageAction;
 use MagoAssistant\Mago\Service\Skills\Content\CmsData\UpdatePageAction;
+use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -34,7 +35,7 @@ class UpdatePageActionTest extends TestCase
             return ['success' => true];
         });
 
-        return new UpdatePageAction($apiClient, $getPageAction);
+        return new UpdatePageAction($apiClient, $getPageAction, $this->createStub(SecureAdminUrl::class));
     }
 
     #[Test]
