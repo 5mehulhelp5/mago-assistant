@@ -205,9 +205,9 @@ See [docs/skills-architecture.md](docs/skills-architecture.md) for the full arch
 - Data & privacy details
 - MCP compatibility roadmap
 
-Working with Claude Code? Copy [.claude/skills/mago-skill](.claude/skills/mago-skill) into your Magento project's
-`.claude/skills/` and ask it to build a skill: it scaffolds the module, classifies every returned field and verifies
-the tool against the registry.
+Building your own tool? `bin/magento mago:tool:create` scaffolds the module and `bin/magento mago:tool:verify` checks
+it, including every returned field's privacy class. [docs/building-a-tool.md](docs/building-a-tool.md) walks through it
+and works as instructions for any coding agent: point your `AGENTS.md` at it.
 
 ## Testing
 

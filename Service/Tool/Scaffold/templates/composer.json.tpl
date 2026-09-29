@@ -1,13 +1,12 @@
 {
-    "name": "{{vendor}}/magento2-{{slug}}",
-    "description": "{{description}}",
+    "name": "{{package}}",
+    "description": "Mago Assistant tool {{tool_name}}",
     "type": "magento2-module",
     "version": "1.0.0",
-    "license": "MIT",
+    "license": "proprietary",
     "require": {
-        "php": "~8.3.0||~8.4.0||~8.5.0",
-        "magento/framework": "^103.0",
-        "mago-assistant/mago": "*"
+        "php": ">=8.2",
+        "mago-assistant/mago": "^2.0"
     },
     "autoload": {
         "files": [

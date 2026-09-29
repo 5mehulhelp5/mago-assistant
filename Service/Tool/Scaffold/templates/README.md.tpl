@@ -1,19 +1,18 @@
-# Mago Assistant skill: {{Module}}
+# {{Vendor}}_{{Module}}
 
-{{description}}
+Adds the `{{tool_name}}` tool to the Mago Assistant admin chat. Access: {{access}}. Magento ACL: `{{acl}}`.
 
 ## Example questions
 
-- *...*
-- *...*
+- ...
+- ...
 
 ## Install
 
 ```bash
-composer require {{vendor}}/magento2-{{slug}}:@dev
+composer require {{package}}
 bin/magento module:enable {{Vendor}}_{{Module}}
 bin/magento setup:upgrade
-bin/magento cache:flush
 ```
 
 ## Returned fields

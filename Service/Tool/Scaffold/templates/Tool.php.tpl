@@ -7,10 +7,6 @@ use MagoAssistant\Mago\Api\Tool\ToolInterface;
 
 class {{ClassName}} implements ToolInterface
 {
-    public function __construct()
-    {
-    }
-
     public function getName(): string
     {
         return '{{tool_name}}';
@@ -29,27 +25,21 @@ class {{ClassName}} implements ToolInterface
         ];
     }
 
-    /**
-     * An empty input resolves to the most restrictive resource the tool can reach.
-     */
     public function getMagentoAcl(array $input = []): string
     {
-        return '';
+        return '{{acl}}';
     }
 
     public function isReadOnly(): bool
     {
-        return true;
+        return {{is_read_only}};
     }
 
     public function isReadOnlyAction(array $input): bool
     {
-        return true;
+        return {{is_read_only}};
     }
 
-    /**
-     * Fields missing from this map are stripped before the model sees the result.
-     */
     public function getFieldClassification(string $action = ''): array
     {
         return [];
