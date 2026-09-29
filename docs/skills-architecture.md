@@ -515,6 +515,9 @@ Per-user rows only apply to genuine admin users. Integration-token ids live in a
 
 Third-party modules (hosting providers, PSPs, marketplace integrations) can register their own tools.
 
+The quickest route is `bin/magento mago:tool:create` to scaffold the module and `bin/magento mago:tool:verify` to check
+it; [building-a-tool.md](building-a-tool.md) is the step-by-step guide. The steps below show what the scaffold contains.
+
 ### Step 1: Implement `ToolInterface`
 
 ```php

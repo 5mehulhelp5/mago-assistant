@@ -265,7 +265,26 @@
         <arguments>
             <argument name="commands" xsi:type="array">
                 <item name="mago_docs_index" xsi:type="object">MagoAssistant\Mago\Console\Command\IndexDocs</item>
+                <item name="mago_tool_verify" xsi:type="object">MagoAssistant\Mago\Console\Command\VerifyTool</item>
+                <item name="mago_tool_create" xsi:type="object">MagoAssistant\Mago\Console\Command\CreateTool</item>
             </argument>
+        </arguments>
+    </type>
+
+    <preference for="MagoAssistant\Mago\Service\Tool\Verify\AdminAreaInterface"
+                type="MagoAssistant\Mago\Service\Tool\Verify\AdminArea"/>
+
+    <!-- Every bin/magento run builds the command list, so the tool commands must not build the
+         registry (and every tool in it) until they actually run -->
+    <type name="MagoAssistant\Mago\Console\Command\VerifyTool">
+        <arguments>
+            <argument name="toolRegistry" xsi:type="object">MagoAssistant\Mago\Service\Tool\ToolRegistry\Proxy</argument>
+            <argument name="toolVerifier" xsi:type="object">MagoAssistant\Mago\Service\Tool\Verify\ToolVerifier\Proxy</argument>
+        </arguments>
+    </type>
+    <type name="MagoAssistant\Mago\Console\Command\CreateTool">
+        <arguments>
+            <argument name="aclResources" xsi:type="object">MagoAssistant\Mago\Service\Tool\Verify\AclResourceIndex\Proxy</argument>
         </arguments>
     </type>
 

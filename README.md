@@ -217,6 +217,10 @@ See [docs/skills-architecture.md](docs/skills-architecture.md) for the full arch
 - Data & privacy details
 - MCP compatibility roadmap
 
+Building your own tool? `bin/magento mago:tool:create` scaffolds the module and `bin/magento mago:tool:verify` checks
+it, including every returned field's privacy class. [docs/building-a-tool.md](docs/building-a-tool.md) walks through it
+and works as instructions for any coding agent: point your `AGENTS.md` at it.
+
 ## Testing
 
 End-to-end tests run with Playwright against Chromium. No test calls a real provider: the
