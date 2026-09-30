@@ -171,6 +171,7 @@ class ChatPanel extends Template
             'Flagged. Review it under Flagged Answers.',
             'Flag removed.',
             'Could not flag this answer.',
+            'This flag can only be removed under Flagged Answers.',
         ];
 
         return array_combine($sentences, array_map(static fn (string $sentence): string => (string)__($sentence), $sentences));

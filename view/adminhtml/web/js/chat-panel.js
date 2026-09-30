@@ -1065,7 +1065,13 @@ define([
                     card.remove();
                 }
                 if (d.error) {
-                    showFlagLine(msgEl, t('Could not flag this answer.'), 'failed');
+                    showFlagLine(
+                        msgEl,
+                        removing
+                            ? t('This flag can only be removed under Flagged Answers.')
+                            : t('Could not flag this answer.'),
+                        'failed'
+                    );
                     return;
                 }
                 setFlagState(btn, d.flagged);

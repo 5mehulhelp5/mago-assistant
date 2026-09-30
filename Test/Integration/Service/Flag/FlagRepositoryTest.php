@@ -15,6 +15,7 @@ use PHPUnit\Framework\TestCase;
 final class FlagRepositoryTest extends TestCase
 {
     private const ADMIN_USER_ID = 555101;
+    private const OTHER_ADMIN_USER_ID = 555102;
 
     private ResourceConnection $resourceConnection;
     private FlagRepository $flags;
@@ -35,6 +36,10 @@ final class FlagRepositoryTest extends TestCase
             $this->resourceConnection->getTableName('mago_flag'),
             ['admin_user_id = ?' => self::ADMIN_USER_ID]
         );
+        $connection->delete(
+            $this->resourceConnection->getTableName('mago_usage_log'),
+            ['admin_user_id = ?' => self::ADMIN_USER_ID]
+        );
         if ($this->conversationId) {
             $connection->delete(
                 $this->resourceConnection->getTableName('mago_conversation'),
@@ -52,9 +57,8 @@ final class FlagRepositoryTest extends TestCase
         $flag = $this->flags->flag($answerId, self::ADMIN_USER_ID, 'It was nine, not fourteen');
 
         self::assertNotNull($flag);
-        self::assertTrue($flag['created']);
 
-        $snapshot = $this->flags->snapshot((array)$this->flags->getById($flag['id']));
+        $snapshot = $this->flags->snapshot((array)$this->flags->getById($flag));
 
         self::assertSame('Fourteen orders were on hold.', $snapshot['answer']['content']);
         self::assertSame('How many orders were on hold last week?', $snapshot['context'][0]['content']);
@@ -73,7 +77,7 @@ final class FlagRepositoryTest extends TestCase
         $answerId = $this->addMessage('assistant', 'Fourteen orders were on hold.');
 
         $flag = $this->flags->flag($answerId, self::ADMIN_USER_ID);
-        $row = (array)$this->flags->getById((int)$flag['id']);
+        $row = (array)$this->flags->getById((int)$flag);
 
         self::assertSame('Fourteen orders were on hold.', $row['answer_preview']);
         // No usage row for this conversation, so there is no model to record.
@@ -87,7 +91,7 @@ final class FlagRepositoryTest extends TestCase
         $answerId = $this->addMessage('assistant', str_repeat('een heel lang antwoord ', 40));
 
         $flag = $this->flags->flag($answerId, self::ADMIN_USER_ID);
-        $preview = (string)$this->flags->getById((int)$flag['id'])['answer_preview'];
+        $preview = (string)$this->flags->getById((int)$flag)['answer_preview'];
 
         self::assertSame(251, mb_strlen($preview));
         self::assertStringEndsWith('…', $preview);
@@ -109,7 +113,7 @@ final class FlagRepositoryTest extends TestCase
         );
         $this->conversationId = 0;
 
-        $row = $this->flags->getById((int)$flag['id']);
+        $row = $this->flags->getById((int)$flag);
 
         self::assertNotNull($row);
         self::assertNull($row['conversation_id']);
@@ -128,9 +132,9 @@ final class FlagRepositoryTest extends TestCase
         $first = $this->flags->flag($answerId, self::ADMIN_USER_ID);
         $second = $this->flags->flag($answerId, self::ADMIN_USER_ID);
 
-        self::assertTrue($first['created']);
-        self::assertFalse($second['created']);
-        self::assertSame($first['id'], $second['id']);
+        self::assertNotNull($first);
+        self::assertSame($first, $second);
+        self::assertCount(1, $this->flagRowsOfConversation());
     }
 
     #[Test]
@@ -147,9 +151,61 @@ final class FlagRepositoryTest extends TestCase
         $answerId = $this->addMessage('assistant', 'Flag me, then do not.');
         $this->flags->flag($answerId, self::ADMIN_USER_ID);
 
-        self::assertTrue($this->flags->unflag($answerId));
-        self::assertFalse($this->flags->unflag($answerId));
+        $first = $this->flags->unflag($answerId, self::ADMIN_USER_ID);
+        $second = $this->flags->unflag($answerId, self::ADMIN_USER_ID);
+
+        self::assertTrue($first);
+        self::assertFalse($second);
         self::assertNull($this->flags->findByMessage($answerId));
+    }
+
+    #[Test]
+    public function itLeavesAFlagAloneWhenSomeoneElseTriesToUnflagIt(): void
+    {
+        $answerId = $this->addMessage('assistant', 'Flagged by one admin.');
+        $this->flags->flag($answerId, self::ADMIN_USER_ID);
+
+        $isRemoved = $this->flags->unflag($answerId, self::OTHER_ADMIN_USER_ID);
+
+        self::assertFalse($isRemoved);
+        self::assertNotNull($this->flags->findByMessage($answerId));
+    }
+
+    #[Test]
+    public function itKeepsAResolvedFlagWhenTheAnswerIsUnflaggedFromThePanel(): void
+    {
+        $answerId = $this->addMessage('assistant', 'Somebody already worked on this one.');
+        $flag = $this->flags->flag($answerId, self::ADMIN_USER_ID);
+        $this->flags->setStatus((int)$flag, FlagRepository::STATUS_RESOLVED);
+
+        $isRemoved = $this->flags->unflag($answerId, self::ADMIN_USER_ID);
+
+        self::assertFalse($isRemoved);
+        self::assertNotNull($this->flags->findByMessage($answerId));
+    }
+
+    #[Test]
+    public function itDeletesOnlyTheGivenFlagsAndIgnoresIdsThatAreNotIds(): void
+    {
+        $kept = $this->flags->flag($this->addMessage('assistant', 'Keep me.'), self::ADMIN_USER_ID);
+        $gone = $this->flags->flag($this->addMessage('assistant', 'Delete me.'), self::ADMIN_USER_ID);
+
+        $deleted = $this->flags->delete([(string)$gone, 'abc', 0, -3, null]);
+
+        self::assertSame(1, $deleted);
+        self::assertNull($this->flags->getById((int)$gone));
+        self::assertNotNull($this->flags->getById((int)$kept));
+    }
+
+    #[Test]
+    public function itDeletesNothingWhenNoUsableIdIsGiven(): void
+    {
+        $flag = $this->flags->flag($this->addMessage('assistant', 'Still here.'), self::ADMIN_USER_ID);
+
+        $deleted = $this->flags->delete(['', 'x', 0]);
+
+        self::assertSame(0, $deleted);
+        self::assertNotNull($this->flags->getById((int)$flag));
     }
 
     #[Test]
@@ -164,16 +220,133 @@ final class FlagRepositoryTest extends TestCase
     }
 
     #[Test]
-    public function itOnlyAcceptsAStatusItKnows(): void
+    public function itRefusesAStatusItDoesNotKnow(): void
     {
-        $answerId = $this->addMessage('assistant', 'Status test.');
+        $flag = $this->flags->flag($this->addMessage('assistant', 'Status test.'), self::ADMIN_USER_ID);
+
+        try {
+            $this->flags->setStatus((int)$flag, 'something else');
+            self::fail('An unknown status must be refused, not silently ignored.');
+        } catch (\InvalidArgumentException) {
+        }
+
+        self::assertSame(FlagRepository::STATUS_OPEN, $this->flags->getById((int)$flag)['status']);
+    }
+
+    #[Test]
+    public function itResolvesAFlag(): void
+    {
+        $flag = $this->flags->flag($this->addMessage('assistant', 'Status test.'), self::ADMIN_USER_ID);
+
+        $this->flags->setStatus((int)$flag, FlagRepository::STATUS_RESOLVED);
+
+        self::assertSame(FlagRepository::STATUS_RESOLVED, $this->flags->getById((int)$flag)['status']);
+    }
+
+    /**
+     * A tool-using turn logs one usage row per provider call. The flag has to carry all of them, or
+     * the skills that were used and most of the tokens are lost.
+     */
+    #[Test]
+    public function itCopiesEveryProviderCallOfTheFlaggedTurn(): void
+    {
+        $this->addMessage('user', 'How many orders are on hold?', '2026-09-30 10:00:00');
+        $this->addUsage('get_orders', 1200, 30, '2026-09-30 10:00:02', '{"call":"tool"}');
+        $this->addUsage(null, 1500, 80, '2026-09-30 10:00:04', '{"call":"answer"}');
+        $answerId = $this->addMessage('assistant', 'Fourteen.', '2026-09-30 10:00:05');
+
         $flag = $this->flags->flag($answerId, self::ADMIN_USER_ID);
 
-        $this->flags->setStatus((int)$flag['id'], 'something else');
-        self::assertSame(FlagRepository::STATUS_OPEN, $this->flags->getById((int)$flag['id'])['status']);
+        $row = (array)$this->flags->getById((int)$flag);
+        $usage = $this->flags->snapshot($row)['usage'];
+        self::assertSame('get_orders', $row['skills']);
+        self::assertSame('anthropic claude-sonnet', $row['model']);
+        self::assertSame(2700, $usage['input_tokens']);
+        self::assertSame(110, $usage['output_tokens']);
+        self::assertSame(['call' => 'tool'], $usage['calls'][0]['request_payload']);
+        self::assertSame(['call' => 'answer'], $usage['calls'][1]['request_payload']);
+    }
 
-        $this->flags->setStatus((int)$flag['id'], FlagRepository::STATUS_RESOLVED);
-        self::assertSame(FlagRepository::STATUS_RESOLVED, $this->flags->getById((int)$flag['id'])['status']);
+    /**
+     * A slash command answers without calling a provider. The turn before it did, and its usage row
+     * must not be passed off as the evidence for this answer.
+     */
+    #[Test]
+    public function itDoesNotBorrowTheUsageOfAnEarlierTurn(): void
+    {
+        $this->addMessage('user', 'How many orders are on hold?', '2026-09-30 10:00:00');
+        $this->addUsage('get_orders', 1200, 30, '2026-09-30 10:00:02', '{"call":"earlier"}');
+        $this->addMessage('assistant', 'Fourteen.', '2026-09-30 10:00:03');
+        $this->addMessage('user', '/cache flush', '2026-09-30 10:05:00');
+        $answerId = $this->addMessage('assistant', 'The cache was flushed.', '2026-09-30 10:05:01');
+
+        $flag = $this->flags->flag($answerId, self::ADMIN_USER_ID);
+
+        $row = (array)$this->flags->getById((int)$flag);
+        self::assertNull($this->flags->snapshot($row)['usage']);
+        self::assertNull($row['model']);
+        self::assertNull($row['skills']);
+    }
+
+    #[Test]
+    public function itRefusesToFlagAnAnswerFromSomeoneElsesConversation(): void
+    {
+        $answerId = $this->addMessage('assistant', 'Only for the admin who asked.');
+
+        $flagId = $this->flags->flag($answerId, self::OTHER_ADMIN_USER_ID);
+
+        self::assertNull($flagId);
+        self::assertSame([], $this->flagRowsOfConversation());
+    }
+
+    /**
+     * A write is proposed in one turn and carried out in the next: the proposal is stored as an
+     * answer awaiting confirmation, and the follow-up answer comes after the admin confirms. The
+     * follow-up's flag gets the calls made after the confirmation, not the call that proposed the
+     * write, even when that call was logged in the same second as the pending answer.
+     */
+    #[Test]
+    public function itStartsAConfirmedTurnAfterTheAnswerThatAskedForConfirmation(): void
+    {
+        $this->addMessage('user', 'Create the page.', '2026-09-30 10:00:00');
+        $this->addUsage('cms_data', 900, 40, '2026-09-30 10:00:02', '{"call":"proposal"}');
+        $this->addMessage('assistant', 'Shall I create it?', '2026-09-30 10:00:02');
+        $this->addMessage('tool', '{"created":true}', '2026-09-30 10:00:20');
+        $this->addUsage(null, 1100, 60, '2026-09-30 10:00:22', '{"call":"follow-up"}');
+        $answerId = $this->addMessage('assistant', 'The page is live.', '2026-09-30 10:00:23');
+
+        $flagId = $this->flags->flag($answerId, self::ADMIN_USER_ID);
+
+        $calls = $this->flags->snapshot((array)$this->flags->getById((int)$flagId))['usage']['calls'];
+        self::assertCount(1, $calls);
+        self::assertSame(['call' => 'follow-up'], $calls[0]['request_payload']);
+    }
+
+    #[Test]
+    public function itCountsACallInTheSameSecondAsTheQuestionAsPartOfTheTurn(): void
+    {
+        $this->addMessage('user', 'How many orders are on hold?', '2026-09-30 10:00:00');
+        $this->addUsage(null, 900, 10, '2026-09-30 10:00:00', '{"call":"answer"}');
+        $answerId = $this->addMessage('assistant', 'Fourteen.', '2026-09-30 10:00:01');
+
+        $flagId = $this->flags->flag($answerId, self::ADMIN_USER_ID);
+
+        $calls = $this->flags->snapshot((array)$this->flags->getById((int)$flagId))['usage']['calls'];
+        self::assertCount(1, $calls);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function flagRowsOfConversation(): array
+    {
+        $connection = $this->resourceConnection->getConnection();
+
+        return $connection->fetchAll(
+            $connection->select()
+                ->from($this->resourceConnection->getTableName('mago_flag'))
+                ->where('conversation_id = ?', $this->conversationId)
+        );
     }
 
     private function createConversation(): int
@@ -188,16 +361,41 @@ final class FlagRepositoryTest extends TestCase
         return (int)$connection->lastInsertId($table);
     }
 
-    private function addMessage(string $role, string $content): int
+    private function addMessage(string $role, string $content, ?string $createdAt = null): int
     {
         $connection = $this->resourceConnection->getConnection();
         $table = $this->resourceConnection->getTableName('mago_message');
-        $connection->insert($table, [
+        $connection->insert($table, array_filter([
             'conversation_id' => $this->conversationId,
             'role' => $role,
             'content' => $content,
-        ]);
+            'created_at' => $createdAt,
+        ], static fn (mixed $value): bool => $value !== null));
 
         return (int)$connection->lastInsertId($table);
+    }
+
+    private function addUsage(
+        ?string $skillNames,
+        int $inputTokens,
+        int $outputTokens,
+        string $createdAt,
+        string $requestPayload
+    ): void {
+        $this->resourceConnection->getConnection()->insert(
+            $this->resourceConnection->getTableName('mago_usage_log'),
+            [
+                'admin_user_id' => self::ADMIN_USER_ID,
+                'conversation_id' => $this->conversationId,
+                'provider' => 'anthropic',
+                'model' => 'claude-sonnet',
+                'input_tokens' => $inputTokens,
+                'output_tokens' => $outputTokens,
+                'total_tokens' => $inputTokens + $outputTokens,
+                'skill_names' => $skillNames,
+                'request_payload' => $requestPayload,
+                'created_at' => $createdAt,
+            ]
+        );
     }
 }

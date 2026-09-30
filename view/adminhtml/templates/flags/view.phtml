@@ -14,6 +14,13 @@ $environment = $block->getEnvironment();
     <div class="message message-error"><?= $escaper->escapeHtml(__('This flagged answer no longer exists.')) ?></div>
 <?php else: ?>
 <div class="mago-flag-view">
+    <?php if (!$block->hasReadableSnapshot()): ?>
+        <div class="message message-error">
+            <?= $escaper->escapeHtml(__(
+                'The stored snapshot of this flag could not be read. The Mago error log has the details.'
+            )) ?>
+        </div>
+    <?php endif; ?>
     <div class="admin__page-section">
         <div class="admin__page-section-title">
             <span class="title"><?= $escaper->escapeHtml(__('Details')) ?></span>
@@ -90,7 +97,7 @@ $environment = $block->getEnvironment();
         <div class="admin__page-section-title">
             <span class="title"><?= $escaper->escapeHtml(__('The flagged answer')) ?></span>
         </div>
-    <pre class="mago-flag-content"><?= $escaper->escapeHtml((string)($answer['content'] ?? '')) ?></pre>
+    <pre class="mago-flag-content"><?= $escaper->escapeHtml($block->displayText((string)($answer['content'] ?? ''))) ?></pre>
 
     <?php if (!empty($answer['tool_calls'])): ?>
         <h3 class="mago-flag-subtitle"><?= $escaper->escapeHtml(__('Tool calls')) ?></h3>
@@ -105,7 +112,7 @@ $environment = $block->getEnvironment();
     <?php foreach ($block->getContext() as $message): ?>
         <div class="mago-flag-message">
             <strong><?= $escaper->escapeHtml((string)$message['role']) ?></strong>
-            <pre class="mago-flag-content"><?= $escaper->escapeHtml((string)($message['content'] ?? '')) ?></pre>
+            <pre class="mago-flag-content"><?= $escaper->escapeHtml($block->displayText((string)($message['content'] ?? ''))) ?></pre>
             <?php if (!empty($message['tool_calls'])): ?>
                 <pre class="mago-flag-content"><?= $escaper->escapeHtml($block->pretty($message['tool_calls'])) ?></pre>
             <?php endif; ?>
@@ -118,11 +125,24 @@ $environment = $block->getEnvironment();
         <div class="admin__page-section-title">
             <span class="title"><?= $escaper->escapeHtml(__('What went over the wire')) ?></span>
         </div>
+    <?php if ($block->isPayloadTrimmed()): ?>
+        <div class="message message-notice">
+            <?= $escaper->escapeHtml(__(
+                'Some payloads were left out, oldest call first, to keep this flag within the size a database row can hold.'
+            )) ?>
+        </div>
+    <?php endif; ?>
     <?php if ($block->hasPayloads()): ?>
-        <h3 class="mago-flag-subtitle"><?= $escaper->escapeHtml(__('Request')) ?></h3>
-        <pre class="mago-flag-content"><?= $escaper->escapeHtml($block->pretty($usage['request_payload'] ?? null)) ?></pre>
-        <h3 class="mago-flag-subtitle"><?= $escaper->escapeHtml(__('Response')) ?></h3>
-        <pre class="mago-flag-content"><?= $escaper->escapeHtml($block->pretty($usage['response_payload'] ?? null)) ?></pre>
+        <?php foreach ($block->getCalls() as $index => $call): ?>
+        <h3 class="mago-flag-subtitle">
+            <?= $escaper->escapeHtml(__('Call %1 of %2: request', $index + 1, count($block->getCalls()))) ?>
+        </h3>
+        <pre class="mago-flag-content"><?= $escaper->escapeHtml($block->pretty($call['request_payload'] ?? null)) ?></pre>
+        <h3 class="mago-flag-subtitle">
+            <?= $escaper->escapeHtml(__('Call %1 of %2: response', $index + 1, count($block->getCalls()))) ?>
+        </h3>
+        <pre class="mago-flag-content"><?= $escaper->escapeHtml($block->pretty($call['response_payload'] ?? null)) ?></pre>
+        <?php endforeach; ?>
     <?php else: ?>
         <div class="message message-notice">
             <?= $escaper->escapeHtml(__(

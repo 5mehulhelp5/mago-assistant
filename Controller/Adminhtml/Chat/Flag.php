@@ -51,13 +51,13 @@ class Flag extends Action implements HttpPostActionInterface
             $postData = $this->json->unserialize((string)$this->getRequest()->getContent());
             $messageId = (int)($postData['message_id'] ?? 0);
 
-            if (!$messageId) {
+            if ($messageId <= 0) {
                 return $result->setData(['error' => 'message_id is required']);
             }
 
             $user = $this->_auth->getUser();
             $adminUserId = $user ? (int)$user->getId() : 0;
-            if (!$adminUserId) {
+            if ($adminUserId === 0) {
                 return $result->setData(['error' => 'Not authorized']);
             }
 
@@ -65,20 +65,20 @@ class Flag extends Action implements HttpPostActionInterface
             // ownership check: a flag must not be a way to read someone else's conversation.
             $this->conversationRepository->getMessageForUser($messageId, $adminUserId);
 
-            if (!empty($postData['remove'])) {
-                $this->flagRepository->unflag($messageId);
-
-                return $result->setData(['flagged' => false]);
+            if (($postData['remove'] ?? false) === true) {
+                return $this->flagRepository->unflag($messageId, $adminUserId)
+                    ? $result->setData(['flagged' => false])
+                    : $result->setData(['error' => 'This flag can only be removed under Flagged Answers']);
             }
 
             $note = mb_substr(trim((string)($postData['note'] ?? '')), 0, self::MAX_NOTE_LENGTH);
-            $flag = $this->flagRepository->flag($messageId, $adminUserId, $note);
+            $flagId = $this->flagRepository->flag($messageId, $adminUserId, $note);
 
-            if ($flag === null) {
+            if ($flagId === null) {
                 return $result->setData(['error' => 'Only an assistant answer can be flagged']);
             }
 
-            return $result->setData(['flagged' => true, 'flag_id' => $flag['id']]);
+            return $result->setData(['flagged' => true, 'flag_id' => $flagId]);
         } catch (\Throwable $e) {
             $this->errorLogger->addLog('Flag Controller', $e->getMessage());
 

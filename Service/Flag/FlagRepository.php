@@ -8,6 +8,7 @@ namespace MagoAssistant\Mago\Service\Flag;
 
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Serialize\Serializer\Json;
+use MagoAssistant\Mago\Logger\ErrorLogger;
 
 /**
  * Flagged answers, stored and read the way the rest of this module talks to its tables: through the
@@ -21,7 +22,8 @@ class FlagRepository
     public function __construct(
         private readonly ResourceConnection $resourceConnection,
         private readonly SnapshotBuilder $snapshotBuilder,
-        private readonly Json $json
+        private readonly Json $json,
+        private readonly ErrorLogger $errorLogger
     ) {
     }
 
@@ -31,13 +33,13 @@ class FlagRepository
      * The snapshot is taken here and never refreshed: a flag is what the answer looked like when
      * someone thought it was wrong, not what the conversation looks like now.
      *
-     * @return array{id: int, created: bool}|null Null when the message is not an answer
+     * @return int|null The flag id, or null when the message is not an answer of this admin
      */
-    public function flag(int $messageId, int $adminUserId, string $note = ''): ?array
+    public function flag(int $messageId, int $adminUserId, string $note = ''): ?int
     {
         $existing = $this->findByMessage($messageId);
-        if ($existing) {
-            return ['id' => (int)$existing['entity_id'], 'created' => false];
+        if ($existing !== null) {
+            return (int)$existing['entity_id'];
         }
 
         $snapshot = $this->snapshotBuilder->build($messageId, $adminUserId);
@@ -60,16 +62,21 @@ class FlagRepository
             'skills' => mb_substr((string)($snapshot['usage']['skill_names'] ?? ''), 0, 255) ?: null,
         ]);
 
-        return ['id' => (int)$connection->lastInsertId($this->table()), 'created' => true];
+        return (int)$connection->lastInsertId($this->table());
     }
 
     /**
-     * Remove the flag on a message. Returns whether there was one.
+     * Take back a flag from the chat panel. Only the admin who flagged the answer can, and only while
+     * nobody has resolved it yet: after that the flag is evidence someone worked with, and removing
+     * it is a delete under Flagged Answers, behind its own ACL resource.
      */
-    public function unflag(int $messageId): bool
+    public function unflag(int $messageId, int $adminUserId): bool
     {
-        return $this->resourceConnection->getConnection()
-            ->delete($this->table(), ['message_id = ?' => $messageId]) > 0;
+        return $this->resourceConnection->getConnection()->delete($this->table(), [
+            'message_id = ?' => $messageId,
+            'admin_user_id = ?' => $adminUserId,
+            'status = ?' => self::STATUS_OPEN,
+        ]) > 0;
     }
 
     /**
@@ -123,20 +130,17 @@ class FlagRepository
         return $flagged;
     }
 
+    /**
+     * @throws \InvalidArgumentException When the status is not one a flag can have
+     */
     public function setStatus(int $flagId, string $status): void
     {
         if (!in_array($status, [self::STATUS_OPEN, self::STATUS_RESOLVED], true)) {
-            return;
+            throw new \InvalidArgumentException(sprintf('"%s" is not a flag status.', $status));
         }
 
         $this->resourceConnection->getConnection()
             ->update($this->table(), ['status' => $status], ['entity_id = ?' => $flagId]);
-    }
-
-    public function setNote(int $flagId, string $note): void
-    {
-        $this->resourceConnection->getConnection()
-            ->update($this->table(), ['note' => $note !== '' ? $note : null], ['entity_id = ?' => $flagId]);
     }
 
     /**
@@ -159,8 +163,10 @@ class FlagRepository
     }
 
     /**
-     * The stored snapshot as an array.
+     * The stored snapshot as an array. A snapshot that no longer decodes is logged and read as empty,
+     * so the flag can still be opened and deleted; the view says the snapshot could not be read.
      *
+     * @param array<string, mixed> $flag
      * @return array<string, mixed>
      */
     public function snapshot(array $flag): array
@@ -172,7 +178,16 @@ class FlagRepository
 
         try {
             $decoded = $this->json->unserialize($stored);
-        } catch (\Throwable) {
+        } catch (\InvalidArgumentException $exception) {
+            $this->errorLogger->addLog(
+                'Flag Repository',
+                sprintf(
+                    'The snapshot of flag %d could not be read: %s',
+                    (int)($flag['entity_id'] ?? 0),
+                    $exception->getMessage()
+                )
+            );
+
             return [];
         }
 

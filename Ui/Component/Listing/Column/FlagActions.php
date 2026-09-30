@@ -57,6 +57,7 @@ class FlagActions extends Column
                 $actions['delete'] = [
                     'href' => $this->urlBuilder->getUrl('mago/flags/delete', ['id' => $item['entity_id']]),
                     'label' => __('Delete'),
+                    'post' => true,
                     'confirm' => [
                         'title' => __('Delete Flag'),
                         'message' => __('Delete this flag? The conversation it came from is untouched.'),

@@ -14,6 +14,8 @@ use Magento\Framework\View\Result\PageFactory;
 
 class Index extends Action implements HttpGetActionInterface
 {
+    use ReadsConversations;
+
     public const ADMIN_RESOURCE = 'MagoAssistant_Mago::flags';
 
     public function __construct(

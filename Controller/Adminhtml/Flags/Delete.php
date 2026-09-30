@@ -8,12 +8,14 @@ namespace MagoAssistant\Mago\Controller\Adminhtml\Flags;
 
 use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
-use Magento\Framework\App\Action\HttpGetActionInterface;
+use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magento\Framework\Controller\ResultInterface;
 use MagoAssistant\Mago\Service\Flag\FlagRepository;
 
-class Delete extends Action implements HttpGetActionInterface
+class Delete extends Action implements HttpPostActionInterface
 {
+    use ReadsConversations;
+
     public const ADMIN_RESOURCE = 'MagoAssistant_Mago::flags_delete';
 
     public function __construct(
@@ -27,10 +29,16 @@ class Delete extends Action implements HttpGetActionInterface
     {
         $flagId = (int)$this->getRequest()->getParam('id');
 
-        if ($flagId && $this->flagRepository->delete([$flagId])) {
-            $this->messageManager->addSuccessMessage((string)__('The flag was deleted. The conversation is untouched.'));
+        $redirect = $this->resultRedirectFactory->create()->setPath('mago/flags/index');
+
+        if ($this->flagRepository->delete([$flagId]) === 0) {
+            $this->messageManager->addErrorMessage((string)__('This flagged answer no longer exists.'));
+
+            return $redirect;
         }
 
-        return $this->resultRedirectFactory->create()->setPath('mago/flags/index');
+        $this->messageManager->addSuccessMessage((string)__('The flag was deleted. The conversation is untouched.'));
+
+        return $redirect;
     }
 }

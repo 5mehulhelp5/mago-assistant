@@ -401,6 +401,11 @@
             </argument>
         </arguments>
     </type>
+    <type name="MagoAssistant\Mago\Controller\Adminhtml\Flags\MassDelete">
+        <arguments>
+            <argument name="gridCollection" xsi:type="object" shared="false">MagoFlagGridCollection</argument>
+        </arguments>
+    </type>
 
     <!-- Debug Logger -->
     <virtualType name="MagoAssistantMagoDebugHandler" type="MagoAssistant\Mago\Logger\Handler\Debug"/>

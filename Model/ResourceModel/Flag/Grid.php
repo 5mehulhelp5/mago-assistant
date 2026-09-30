@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace MagoAssistant\Mago\Model\ResourceModel\Flag;
 
 use Magento\Framework\Api\Search\SearchResultInterface;
+use Magento\Framework\DB\Select;
 use Magento\Framework\View\Element\UiComponent\DataProvider\SearchResult;
 
 /**
@@ -21,22 +22,47 @@ use Magento\Framework\View\Element\UiComponent\DataProvider\SearchResult;
  */
 class Grid extends SearchResult implements SearchResultInterface
 {
+    /**
+     * Every mago_flag column except the snapshot, which is megabytes of payload the grid never shows
+     */
+    private const GRID_COLUMNS = [
+        'entity_id',
+        'message_id',
+        'conversation_id',
+        'admin_user_id',
+        'status',
+        'note',
+        'answer_preview',
+        'model',
+        'skills',
+        'created_at',
+        'updated_at',
+    ];
+
+    /**
+     * Grid fields that live on a joined table, by the column they come from
+     */
+    private const JOINED_FIELDS = [
+        'flagged_by' => 'admin_user.username',
+        'conversation_title' => 'conversation.title',
+    ];
+
     protected function _initSelect(): self
     {
         parent::_initSelect();
 
-        $this->getSelect()->joinLeft(
-            ['admin_user' => $this->getTable('admin_user')],
-            'main_table.admin_user_id = admin_user.user_id',
-            ['flagged_by' => 'admin_user.username']
-        )->joinLeft(
-            ['conversation' => $this->getTable('mago_conversation')],
-            'main_table.conversation_id = conversation.entity_id',
-            ['conversation_title' => 'conversation.title']
-        );
-
-        // The snapshot is megabytes of payload and the grid never shows it.
-        $this->getSelect()->columns(['snapshot' => new \Zend_Db_Expr('NULL')]);
+        $this->getSelect()
+            ->reset(Select::COLUMNS)
+            ->columns(self::GRID_COLUMNS, 'main_table')
+            ->joinLeft(
+                ['admin_user' => $this->getTable('admin_user')],
+                'main_table.admin_user_id = admin_user.user_id',
+                ['flagged_by' => 'admin_user.username']
+            )->joinLeft(
+                ['conversation' => $this->getTable('mago_conversation')],
+                'main_table.conversation_id = conversation.entity_id',
+                ['conversation_title' => 'conversation.title']
+            );
 
         return $this;
     }
@@ -51,9 +77,7 @@ class Grid extends SearchResult implements SearchResultInterface
     public function addFieldToFilter($field, $condition = null): self
     {
         if (is_string($field) && !str_contains($field, '.')) {
-            $field = in_array($field, ['flagged_by', 'conversation_title'], true)
-                ? ($field === 'flagged_by' ? 'admin_user.username' : 'conversation.title')
-                : 'main_table.' . $field;
+            $field = self::JOINED_FIELDS[$field] ?? 'main_table.' . $field;
         }
 
         return parent::addFieldToFilter($field, $condition);

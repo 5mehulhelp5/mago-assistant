@@ -55,6 +55,11 @@ const LISTING_RECIPES: Record<string, ListingRecipe> = {
     menuHrefContains: '/mago/skills/',
     listingNamespace: 'mago_skills_listing',
   },
+  'mago/flags': {
+    menuHrefContains: '/mago/flags/',
+    listingNamespace: 'mago_flags_listing',
+    actionKey: 'view',
+  },
   'customer/index': {
     menuHrefContains: '/customer/index/',
     listingNamespace: 'customer_listing',
@@ -378,6 +383,36 @@ export default class ChatPanel {
 
   lastAssistantMessage(page: Page): Locator {
     return this.assistantMessages(page).last();
+  }
+
+  flagButton(page: Page): Locator {
+    return this.lastAssistantMessage(page).locator('.mago-msg-flag');
+  }
+
+  flagLine(page: Page): Locator {
+    return this.lastAssistantMessage(page).locator('.mago-flag-line');
+  }
+
+  /**
+   * Flags the last answer with a note, and returns the id of the flag the server created. The flag
+   * button only shows on hover until the answer is flagged, so the message is hovered first.
+   */
+  async flagLastAnswer(page: Page, note: string): Promise<number> {
+    await this.lastAssistantMessage(page).hover();
+    await this.flagButton(page).click({timeout: INTERACTION_TIMEOUT_MS});
+
+    const ask = this.lastAssistantMessage(page).locator('.mago-flag-ask');
+    await ask.locator('input').fill(note);
+
+    const flagResponse = page.waitForResponse((response) => response.url().includes('mago/chat/flag'));
+    await ask.getByRole('button', {name: 'Flag', exact: true}).click({timeout: INTERACTION_TIMEOUT_MS});
+    const body = await (await flagResponse).json();
+
+    if (!body.flag_id) {
+      throw new Error('Flagging the answer failed: ' + JSON.stringify(body));
+    }
+
+    return body.flag_id;
   }
 
   toolTags(page: Page): Locator {

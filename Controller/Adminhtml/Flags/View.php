@@ -15,6 +15,8 @@ use MagoAssistant\Mago\Service\Flag\FlagRepository;
 
 class View extends Action implements HttpGetActionInterface
 {
+    use ReadsConversations;
+
     public const ADMIN_RESOURCE = 'MagoAssistant_Mago::flags';
 
     public function __construct(

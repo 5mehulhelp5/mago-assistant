@@ -14,6 +14,8 @@ use MagoAssistant\Mago\Service\Flag\FlagRepository;
 
 class Resolve extends Action implements HttpPostActionInterface
 {
+    use ReadsConversations;
+
     public const ADMIN_RESOURCE = 'MagoAssistant_Mago::flags';
 
     public function __construct(
@@ -27,16 +29,28 @@ class Resolve extends Action implements HttpPostActionInterface
     {
         $flagId = (int)$this->getRequest()->getParam('id');
         $status = (string)$this->getRequest()->getParam('status', FlagRepository::STATUS_RESOLVED);
+        $redirect = $this->resultRedirectFactory->create()->setPath('mago/flags/view', ['id' => $flagId]);
 
-        if ($flagId && $this->flagRepository->getById($flagId)) {
-            $this->flagRepository->setStatus($flagId, $status);
-            $this->messageManager->addSuccessMessage(
-                $status === FlagRepository::STATUS_RESOLVED
-                    ? (string)__('Flag marked as resolved.')
-                    : (string)__('Flag reopened.')
-            );
+        if ($flagId <= 0 || $this->flagRepository->getById($flagId) === null) {
+            $this->messageManager->addErrorMessage((string)__('This flagged answer no longer exists.'));
+
+            return $redirect->setPath('mago/flags/index');
         }
 
-        return $this->resultRedirectFactory->create()->setPath('mago/flags/view', ['id' => $flagId]);
+        try {
+            $this->flagRepository->setStatus($flagId, $status);
+        } catch (\InvalidArgumentException) {
+            $this->messageManager->addErrorMessage((string)__('The flag status was not changed.'));
+
+            return $redirect;
+        }
+
+        $this->messageManager->addSuccessMessage(
+            $status === FlagRepository::STATUS_RESOLVED
+                ? (string)__('Flag marked as resolved.')
+                : (string)__('Flag reopened.')
+        );
+
+        return $redirect;
     }
 }
