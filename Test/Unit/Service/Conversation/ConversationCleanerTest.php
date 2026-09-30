@@ -48,24 +48,36 @@ final class ConversationCleanerTest extends TestCase
         $this->config->method('getHistoryRetentionDays')->willReturn(90);
         $this->connection->method('select')->willReturn($this->selectStub());
         $this->connection->method('update')->willReturn(0);
+        $deletes = $this->recordDeletes(['mago_conversation' => 7]);
 
-        $this->connection->expects(self::once())
-            ->method('delete')
-            ->with(
-                'mago_conversation',
-                self::callback(function (array $where): bool {
-                    // Cutoff is a UTC datetime string keyed on updated_at, roughly 90 days back.
-                    if (!isset($where['updated_at < ?'])) {
-                        return false;
-                    }
-                    $cutoff = strtotime($where['updated_at < ?'] . ' UTC');
-                    $expected = strtotime('-90 days');
-                    return $cutoff !== false && abs($cutoff - $expected) < 86400;
-                })
-            )
-            ->willReturn(7);
+        $deleted = $this->cleaner->clean();
 
-        self::assertSame(7, $this->cleaner->clean());
+        self::assertSame(7, $deleted);
+        self::assertEqualsWithDelta(
+            strtotime('-90 days'),
+            strtotime($deletes->forTable('mago_conversation')[0]['updated_at < ?'] . ' UTC'),
+            86400
+        );
+    }
+
+    #[Test]
+    public function itDeletesFlagsOlderThanTheRetentionWindowCountedFromWhenTheyWereMade(): void
+    {
+        $this->config->method('getHistoryRetentionDays')->willReturn(90);
+        $this->connection->method('select')->willReturn($this->selectStub());
+        $this->connection->method('update')->willReturn(0);
+        $deletes = $this->recordDeletes(['mago_conversation' => 2]);
+
+        $this->cleaner->clean();
+
+        $flagDeletes = $deletes->forTable('mago_flag');
+        self::assertCount(1, $flagDeletes);
+        self::assertSame(['created_at < ?'], array_keys($flagDeletes[0]));
+        self::assertEqualsWithDelta(
+            strtotime('-90 days'),
+            strtotime($flagDeletes[0]['created_at < ?'] . ' UTC'),
+            60
+        );
     }
 
     #[Test]
@@ -93,19 +105,35 @@ final class ConversationCleanerTest extends TestCase
                 $order[] = 'scrub';
                 return 3;
             });
-        $this->connection->expects(self::once())
-            ->method('delete')
-            ->willReturnCallback(function () use (&$order): int {
-                $order[] = 'delete';
-                return 7;
+        $this->connection->method('delete')
+            ->willReturnCallback(function (string $table) use (&$order): int {
+                $order[] = $table === 'mago_conversation' ? 'delete' : 'flags';
+                return $table === 'mago_conversation' ? 7 : 0;
             });
 
         self::assertSame(7, $this->cleaner->clean());
         self::assertSame(
-            ['scrub', 'delete'],
+            ['scrub', 'flags', 'delete'],
             $order,
             'payloads must be scrubbed while conversation_id still links them, i.e. before the delete'
         );
+    }
+
+    /**
+     * @param array<string, int> $affectedRows Rows each table's delete reports, 0 when not listed
+     */
+    private function recordDeletes(array $affectedRows): RecordedDeletes
+    {
+        $deletes = new RecordedDeletes();
+        $this->connection->method('delete')->willReturnCallback(
+            static function (string $table, array $where) use ($deletes, $affectedRows): int {
+                $deletes->record($table, $where);
+
+                return $affectedRows[$table] ?? 0;
+            }
+        );
+
+        return $deletes;
     }
 
     private function selectStub(): Select

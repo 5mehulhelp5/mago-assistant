@@ -8,6 +8,7 @@ namespace MagoAssistant\Mago\Service\Conversation;
 
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\Adapter\AdapterInterface;
+use Magento\Framework\DB\Select;
 use MagoAssistant\Mago\Api\Config\RepositoryInterface as ConfigRepositoryInterface;
 
 /**
@@ -17,6 +18,10 @@ use MagoAssistant\Mago\Api\Config\RepositoryInterface as ConfigRepositoryInterfa
  * statement. The mago_usage_log foreign key is ON DELETE SET NULL, so its debug payloads (the full
  * prompt, including conversation text) are scrubbed for the same cutoff first, before the delete
  * detaches them. Deleting by updated_at, not created_at, so a long but still-used conversation survives.
+ *
+ * Flagged answers hold their own copy of the conversation, so the same window applies to them,
+ * counted from the moment the flag was made: flagging an answer in an old conversation keeps that
+ * copy for the full window, and deleting the conversation does not shorten or lengthen it.
  */
 class ConversationCleaner
 {
@@ -41,7 +46,12 @@ class ConversationCleaner
         $cutoff = (new \DateTimeImmutable(sprintf('-%d days', $days), new \DateTimeZone('UTC')))
             ->format('Y-m-d H:i:s');
 
-        $this->scrubUsageLogPayloads($connection, $table, $cutoff);
+        $expiredConversationIds = $connection->select()
+            ->from($table, 'entity_id')
+            ->where('updated_at < ?', $cutoff);
+
+        $this->scrubUsageLogPayloads($connection, $expiredConversationIds);
+        $this->deleteFlags($connection, $cutoff);
 
         return $connection->delete($table, ['updated_at < ?' => $cutoff]);
     }
@@ -51,16 +61,17 @@ class ConversationCleaner
      * the conversation is gone the ON DELETE SET NULL leaves conversation_id null, so neither this
      * purge nor Delete/MassDelete could reach the prompt text again; scrub it while it is still linked.
      */
-    private function scrubUsageLogPayloads(AdapterInterface $connection, string $conversationTable, string $cutoff): void
+    private function scrubUsageLogPayloads(AdapterInterface $connection, Select $expiredConversationIds): void
     {
-        $conversationIds = $connection->select()
-            ->from($conversationTable, 'entity_id')
-            ->where('updated_at < ?', $cutoff);
-
         $connection->update(
             $this->resourceConnection->getTableName('mago_usage_log'),
             ['request_payload' => null, 'response_payload' => null],
-            ['conversation_id IN (?)' => $conversationIds]
+            ['conversation_id IN (?)' => $expiredConversationIds]
         );
+    }
+
+    private function deleteFlags(AdapterInterface $connection, string $cutoff): void
+    {
+        $connection->delete($this->resourceConnection->getTableName('mago_flag'), ['created_at < ?' => $cutoff]);
     }
 }
