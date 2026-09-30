@@ -42,10 +42,15 @@ export default class FlaggedAnswers {
    * what MassDelete has to resolve through Magento's Filter.
    */
   async deleteAllMatching(page: Page) {
-    await page.locator('.admin__data-grid-header .action-multicheck-toggle').click();
-    await page.locator('.admin__data-grid-header .action-menu-item').getByText('Select All', {exact: true}).click();
-    await page.locator('.admin__data-grid-header .action-select').click();
-    await page.locator('.admin__data-grid-header .action-menu-item').getByText('Delete', {exact: true}).click();
+    /* The select-all menu sits in the grid's own header cell; the Actions menu in the toolbar. The
+       sticky header clones both once the page scrolls, hence first(). */
+    const multicheck = page.locator('.admin__data-grid-wrap .data-grid-multicheck-cell').first();
+    await multicheck.locator('.action-multicheck-toggle').click();
+    await multicheck.locator('.action-menu-item').getByText('Select All', {exact: true}).click();
+
+    const actions = page.locator('.admin__data-grid-header .action-select-wrap').first();
+    await actions.locator('.action-select').click();
+    await actions.locator('.action-menu-item').getByText('Delete', {exact: true}).click();
     await page.locator('.modal-popup.confirm._show .action-accept').click();
     await page.waitForURL(/\/mago\/flags\/index\//);
   }
