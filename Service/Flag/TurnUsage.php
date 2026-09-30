@@ -19,13 +19,16 @@ final class TurnUsage
 
     /**
      * @param list<array<string, mixed>> $calls One entry per provider call, oldest first
+     * @param array<string, mixed> $answeringCall The last call, the one that produced the answer
      */
-    private function __construct(private readonly array $calls)
-    {
+    private function __construct(
+        private readonly array $calls,
+        private readonly array $answeringCall
+    ) {
     }
 
     /**
-     * @param list<array<string, mixed>> $rows mago_usage_log rows, oldest first
+     * @param array<array<string, mixed>> $rows mago_usage_log rows, oldest first
      * @param callable(string): mixed $decode Turns a stored payload column into its value
      */
     public static function fromRows(array $rows, callable $decode): ?self
@@ -34,7 +37,7 @@ final class TurnUsage
             return null;
         }
 
-        return new self(array_map(
+        $calls = array_map(
             static fn (array $row): array => [
                 'provider' => (string)($row['provider'] ?? ''),
                 'model' => (string)($row['model'] ?? ''),
@@ -46,7 +49,9 @@ final class TurnUsage
                 'logged_at' => (string)($row['created_at'] ?? ''),
             ],
             array_values($rows)
-        ));
+        );
+
+        return new self($calls, $calls[count($calls) - 1]);
     }
 
     /**
@@ -72,23 +77,13 @@ final class TurnUsage
      */
     public function toArray(): array
     {
-        $answering = $this->answeringCall();
-
         return [
-            'provider' => $answering['provider'],
-            'model' => $answering['model'],
+            'provider' => $this->answeringCall['provider'],
+            'model' => $this->answeringCall['model'],
             'input_tokens' => array_sum(array_column($this->calls, 'input_tokens')),
             'output_tokens' => array_sum(array_column($this->calls, 'output_tokens')),
             'skill_names' => implode(self::SKILL_SEPARATOR, $this->skills()),
             'calls' => $this->calls,
         ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function answeringCall(): array
-    {
-        return $this->calls[array_key_last($this->calls)];
     }
 }
