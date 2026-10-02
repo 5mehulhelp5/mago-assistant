@@ -165,8 +165,22 @@ class AdminNavigator implements ToolInterface
         ];
     }
 
+    /**
+     * Direct-link mode hands back a working, secret-key-bearing admin link to a named record, so
+     * it is gated by the resource guarding that entity's own admin screen - the way every other
+     * lookup in this codebase is. The link does not bypass the target page's access control when
+     * clicked, but building one still confirms the record exists and hands a valid deep link to it.
+     *
+     * Search mode is left ungated: it only names the standard admin pages this module ships a
+     * registry of, and carries no entity the request could be gated on.
+     */
     public function getMagentoAcl(array $input = []): string
     {
-        return '';
+        $entityType = (string)($input['entity_type'] ?? '');
+        if ($entityType === '' || empty($input['entity_id'])) {
+            return '';
+        }
+
+        return $this->entityRouteMap->getAclResource($entityType) ?? '';
     }
 }
