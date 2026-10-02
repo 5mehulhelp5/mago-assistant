@@ -12,10 +12,12 @@ use MagoAssistant\Mago\Api\Tool\ValidatingToolInterface;
 use MagoAssistant\Mago\Api\Skill\ActionInterface;
 use MagoAssistant\Mago\Api\Skill\ConditionallyIrreversibleActionInterface;
 use MagoAssistant\Mago\Api\Skill\IrreversibleActionInterface;
+use MagoAssistant\Mago\Api\Acl;
+use MagoAssistant\Mago\Api\Tool\ActionAclAwareToolInterface;
 use MagoAssistant\Mago\Api\Tool\ActionScopedToolInterface;
 use MagoAssistant\Mago\Api\Tool\IrreversibleToolInterface;
 
-abstract class AbstractSkill implements ActionScopedToolInterface, IrreversibleToolInterface, ValidatingToolInterface
+abstract class AbstractSkill implements ActionScopedToolInterface, IrreversibleToolInterface, ValidatingToolInterface, ActionAclAwareToolInterface
 {
     /** @var ActionInterface[] */
     private readonly array $actions;
@@ -130,12 +132,25 @@ abstract class AbstractSkill implements ActionScopedToolInterface, IrreversibleT
             return ['error' => 'Unknown action: ' . $actionName];
         }
 
-        $acl = $action->getAclResource();
-        if ($acl && !$this->authorization->isAllowed($acl)) {
-            return ['error' => 'You do not have permission to access this data'];
+        // ToolAccess decides this before a call gets here through the chat; this is the same rule
+        // for callers that reach execute() directly (mago:tool:verify): the skill's resource and
+        // the action's must both allow it, an empty declaration allows nobody, and the per-user
+        // sentinel is not Magento's to answer.
+        foreach ([$this->getMagentoAcl($params), $action->getAclResource()] as $acl) {
+            if ($acl === '' || ($acl !== null && $acl !== Acl::MAGO_PER_USER && !$this->authorization->isAllowed($acl))) {
+                return ['error' => 'You do not have permission to access this data'];
+            }
         }
 
         return $action->execute($params, (int)($params['_admin_user_id'] ?? 0));
+    }
+
+    public function getActionAcl(array $input): ?string
+    {
+        $actionName = $input['action'] ?? '';
+        $action = is_string($actionName) ? ($this->actions[$actionName] ?? null) : null;
+
+        return $action?->getAclResource();
     }
 
     public function findRefusal(array $input): ?array

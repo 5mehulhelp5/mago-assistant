@@ -63,7 +63,7 @@ final class FakePresentableTool implements PresentableToolInterface
 
     public function getMagentoAcl(array $input = []): string
     {
-        return '';
+        return 'Magento_Backend::admin';
     }
 
     public function getDisplayName(): string

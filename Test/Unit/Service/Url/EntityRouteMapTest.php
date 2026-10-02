@@ -53,6 +53,35 @@ final class EntityRouteMapTest extends TestCase
         }
     }
 
+    /**
+     * Reading records is what the grid shows, so a read is gated by the grid's resource; the edit
+     * screen can ask for more (cms/page/edit is guarded by Magento_Cms::save, the grid by
+     * Magento_Cms::page), and the two are asked about separately.
+     */
+    #[Test]
+    public function itAsksForTheGridsResourceSeparatelyFromTheEditScreens(): void
+    {
+        $this->adminRouteAcl->method('forRoute')->willReturnMap([
+            ['cms/page/index', 'Magento_Cms::page'],
+            ['cms/page/edit', 'Magento_Cms::save'],
+        ]);
+        $map = $this->map();
+
+        self::assertSame('Magento_Cms::page', $map->getListAclResource('cms_page'));
+        self::assertSame('Magento_Cms::save', $map->getAclResource('cms_page'));
+    }
+
+    #[Test]
+    public function everyRoutableEntityTypeHasAGridToAskAbout(): void
+    {
+        $this->adminRouteAcl->method('forRoute')->willReturn('Magento_Example::resource');
+        $map = $this->map();
+
+        foreach ($map->getEntityTypes() as $entityType) {
+            self::assertNotNull($map->getListAclResource($entityType), $entityType . ' has no grid route');
+        }
+    }
+
     #[Test]
     public function anUnknownEntityTypeIsNeverAskedAbout(): void
     {
@@ -60,6 +89,7 @@ final class EntityRouteMapTest extends TestCase
         $map = $this->map();
 
         self::assertNull($map->getAclResource('parcel'));
+        self::assertNull($map->getListAclResource('parcel'));
         self::assertNull($map->getRoute('parcel'));
         self::assertNull($map->getParamKey('parcel'));
     }

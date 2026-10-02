@@ -69,14 +69,35 @@ class EntityRouteMap
     }
 
     /**
-     * The resource Magento's own admin screen for this entity checks, so a tool acting on an
-     * entity type is gated the way that screen is - whatever Magento has it be today.
+     * The resource Magento's own edit screen for this entity checks, so a tool changing an entity
+     * is gated the way that screen is - whatever Magento has it be today.
      */
     public function getAclResource(string $entityType): ?string
     {
         $route = $this->getRoute($entityType);
 
         return $route === null ? null : $this->adminRouteAcl->forRoute($route);
+    }
+
+    /**
+     * The resource Magento's own grid for this entity checks, for a tool that only reads. Reading
+     * records is what the grid shows, where the edit screen can ask for more (cms/page/edit is
+     * guarded by Magento_Cms::save, the grid by Magento_Cms::page). The grid is the edit route's
+     * controller with its index action, for every entity type here - so it is not a second list.
+     */
+    public function getListAclResource(string $entityType): ?string
+    {
+        $route = $this->getRoute($entityType);
+        if ($route === null) {
+            return null;
+        }
+
+        $segments = explode('/', $route);
+        if (count($segments) < 2) {
+            return null;
+        }
+
+        return $this->adminRouteAcl->forRoute($segments[0] . '/' . $segments[1] . '/index');
     }
 
     /**

@@ -6,8 +6,8 @@ declare(strict_types=1);
 
 namespace MagoAssistant\Mago\Service\Welcome;
 
-use Magento\Framework\AuthorizationInterface;
 use Magento\Framework\Phrase;
+use MagoAssistant\Mago\Service\Acl\ToolAccess;
 use MagoAssistant\Mago\Service\Tool\ToolRegistry;
 
 /**
@@ -22,7 +22,7 @@ class ExampleQuestions
      */
     public function __construct(
         private readonly ToolRegistry $toolRegistry,
-        private readonly AuthorizationInterface $authorization,
+        private readonly ToolAccess $toolAccess,
         private readonly array $questions = []
     ) {
     }
@@ -65,9 +65,7 @@ class ExampleQuestions
             return false;
         }
 
-        $acl = $tool->getMagentoAcl($input);
-
-        return $acl === '' || $this->authorization->isAllowed($acl);
+        return $this->toolAccess->denialReason($tool, $input, $adminUserId) === null;
     }
 
     private function render(array $item): string

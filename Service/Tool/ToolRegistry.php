@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace MagoAssistant\Mago\Service\Tool;
 
+use MagoAssistant\Mago\Api\Acl;
 use MagoAssistant\Mago\Api\Tool\ActionScopedToolInterface;
 use MagoAssistant\Mago\Api\Tool\AvailabilityAwareToolInterface;
 use MagoAssistant\Mago\Api\Tool\ToolInterface;
@@ -177,13 +178,21 @@ class ToolRegistry
         return $this->permissionChecker->isAllowed($adminUserId ?? 0, $tool->getName(), 'write');
     }
 
+    /**
+     * A tool gated per user (Acl::MAGO_PER_USER) is offered only on an explicit grant, the same
+     * answer ToolAccess gives when it is called - offering it and then refusing it would only
+     * have the model try.
+     */
     private function isToolAvailable(ToolInterface $tool, ?int $adminUserId): bool
     {
         if ($this->permissionChecker === null) {
             return true;
         }
         $action = $this->supportsReadAction($tool) ? 'read' : 'write';
-        return $this->permissionChecker->isAllowed($adminUserId ?? 0, $tool->getName(), $action);
+
+        return $tool->getMagentoAcl() === Acl::MAGO_PER_USER
+            ? $this->permissionChecker->isExplicitlyAllowed($adminUserId ?? 0, $tool->getName(), $action)
+            : $this->permissionChecker->isAllowed($adminUserId ?? 0, $tool->getName(), $action);
     }
 
     /**

@@ -11,30 +11,50 @@ use MagoAssistant\Mago\Service\Skills\Navigation\PageRegistry;
 use MagoAssistant\Mago\Service\Url\AdminRouteAcl;
 use MagoAssistant\Mago\Service\Url\EntityRouteMap;
 use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeAclAuthorization;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class AdminNavigatorTest extends TestCase
 {
+    private AdminRouteAcl&MockObject $adminRouteAcl;
+
+    protected function setUp(): void
+    {
+        $this->adminRouteAcl = $this->createMock(AdminRouteAcl::class);
+    }
+
     /**
-     * Which resource each entity type resolves to is Magento's answer, not this tool's - checked
-     * against the real route config in Test/Integration. Here the resolver is stubbed, so what is
-     * under test is whether direct-link mode gates on it at all.
+     * Which resource a route resolves to is Magento's answer, checked against the real route
+     * config in Test/Integration; here the resolver is stubbed, so what is under test is whether
+     * the navigator gates on it at all.
+     *
+     * @param string[] $allowedResources What Magento's ACL answers yes to for this admin
      */
-    private function navigator(?string $resource = 'Magento_Sales::actions_view'): AdminNavigator
+    private function navigator(array $allowedResources = ['Magento_Backend::admin']): AdminNavigator
     {
         $secureAdminUrl = $this->createMock(SecureAdminUrl::class);
-        $secureAdminUrl->method('getUrl')->willReturn('https://example.test/admin/x/key/abc');
+        $secureAdminUrl->method('getUrl')->willReturnCallback(
+            static fn(string $route): string => 'https://example.test/admin/' . $route . '/key/abc'
+        );
 
-        $adminRouteAcl = $this->createMock(AdminRouteAcl::class);
-        $adminRouteAcl->method('forRoute')->willReturn($resource);
-
-        return new AdminNavigator(new PageRegistry(), $secureAdminUrl, new EntityRouteMap($adminRouteAcl));
+        return new AdminNavigator(
+            new PageRegistry(),
+            $secureAdminUrl,
+            new EntityRouteMap($this->adminRouteAcl),
+            $this->adminRouteAcl,
+            new FakeAclAuthorization($allowedResources)
+        );
     }
 
     #[Test]
-    public function aDirectLinkIsGatedByTheEntitysOwnAdminResource(): void
+    public function aDirectLinkIsGatedByTheResourceOfTheEntitysOwnEditRoute(): void
     {
+        $this->adminRouteAcl->expects(self::once())->method('forRoute')
+            ->with('sales/order/view')
+            ->willReturn('Magento_Sales::actions_view');
+
         self::assertSame(
             'Magento_Sales::actions_view',
             $this->navigator()->getMagentoAcl(['entity_type' => 'order', 'entity_id' => 42])
@@ -44,70 +64,107 @@ class AdminNavigatorTest extends TestCase
     #[Test]
     public function everyEntityTypeOfferedInTheSchemaIsGated(): void
     {
+        $this->adminRouteAcl->method('forRoute')->willReturn('Magento_Example::resource');
         $navigator = $this->navigator();
         $offered = $navigator->getParameterSchema()['properties']['entity_type']['enum'];
 
         self::assertNotEmpty($offered);
         foreach ($offered as $entityType) {
-            self::assertNotSame(
-                '',
+            self::assertSame(
+                'Magento_Example::resource',
                 $navigator->getMagentoAcl(['entity_type' => $entityType, 'entity_id' => 42]),
-                sprintf('entity_type "%s" is offered to the model but gated by nothing', $entityType)
+                $entityType
             );
         }
     }
 
     /**
-     * A route Magento has no controller for leaves nothing to check.
+     * A known type whose route Magento resolves nothing for stays closed: that cannot be told
+     * apart from a wrong gate.
      */
     #[Test]
-    public function anEntityTypeWhoseRouteResolvesToNothingDeclaresNoResource(): void
+    public function aKnownEntityTypeWhoseRouteResolvesToNothingIsRefused(): void
     {
-        self::assertSame(
-            '',
-            $this->navigator(null)->getMagentoAcl(['entity_type' => 'order', 'entity_id' => 42])
-        );
+        $this->adminRouteAcl->method('forRoute')->willReturn(null);
+
+        self::assertSame('', $this->navigator()->getMagentoAcl(['entity_type' => 'order', 'entity_id' => 42]));
+    }
+
+    /**
+     * An entity type the map does not know builds no link, so execute() gets to say "Unknown
+     * entity type" - which tells the model more than a permission error would.
+     */
+    #[Test]
+    public function anUnknownEntityTypeIsAnsweredByExecuteNotByTheGate(): void
+    {
+        $this->adminRouteAcl->expects(self::never())->method('forRoute');
+        $navigator = $this->navigator();
+        $input = ['entity_type' => 'parcel', 'entity_id' => 42];
+
+        self::assertSame('Magento_Backend::admin', $navigator->getMagentoAcl($input));
+        self::assertSame('Unknown entity type: parcel', $navigator->execute($input)['error']);
     }
 
     /**
      * Search mode names the standard admin pages this module ships a registry of and carries no
-     * entity to gate on, so it stays on the chat-level read grant alone.
+     * entity to gate on, so any logged-in admin may use it; what it returns is filtered instead.
      */
     #[Test]
-    public function searchModeDeclaresNoEntityResource(): void
+    public function searchModeIsOpenToAnyAdmin(): void
     {
-        self::assertSame('', $this->navigator()->getMagentoAcl(['query' => 'orders']));
+        self::assertSame('Magento_Backend::admin', $this->navigator()->getMagentoAcl(['query' => 'orders']));
+        self::assertSame('Magento_Backend::admin', $this->navigator()->getMagentoAcl());
+        self::assertSame('Magento_Backend::admin', $this->navigator()->getMagentoAcl(['entity_type' => 'order']));
     }
 
     /**
-     * ToolVerifier asks every tool for its resource without input too, which must not resolve to
-     * a resource nobody holds.
+     * A link to a page that answers 403 on arrival is noise, so a search result is kept only when
+     * the admin holds the resource Magento guards that page with.
      */
     #[Test]
-    public function noInputDeclaresNoResource(): void
+    public function searchResultsAreOnlyPagesTheAdminMayOpen(): void
     {
-        self::assertSame('', $this->navigator()->getMagentoAcl());
-    }
-
-    /**
-     * An entity_type without an id is not direct-link mode: execute() falls through to search.
-     */
-    #[Test]
-    public function anEntityTypeWithoutAnIdIsNotADirectLink(): void
-    {
-        self::assertSame('', $this->navigator()->getMagentoAcl(['entity_type' => 'order']));
-    }
-
-    /**
-     * execute() rejects an unknown entity type, so there is no link to gate; returning a resource
-     * id that does not exist would deny every admin but the ones with full access.
-     */
-    #[Test]
-    public function anUnknownEntityTypeDeclaresNoResource(): void
-    {
-        self::assertSame(
-            '',
-            $this->navigator()->getMagentoAcl(['entity_type' => 'parcel', 'entity_id' => 42])
+        $this->adminRouteAcl->method('forRoute')->willReturnCallback(
+            static fn(string $route): ?string => match ($route) {
+                'sales/order' => 'Magento_Sales::sales_order',
+                'sales/invoice' => 'Magento_Sales::sales_invoice',
+                default => null,
+            }
         );
+        $results = $this->navigator(['Magento_Sales::sales_order'])->execute(['query' => 'invoice orders'])['results'];
+
+        $labels = array_column($results, 'label');
+        self::assertContains('Orders', $labels);
+        self::assertNotContains('Invoices', $labels);
+    }
+
+    /**
+     * The permission filter runs before the limit, so a denied page in the top results is replaced
+     * by the next allowed one instead of leaving the admin short.
+     */
+    #[Test]
+    public function aDeniedPageDoesNotCostTheAdminAResult(): void
+    {
+        $this->adminRouteAcl->method('forRoute')->willReturnCallback(
+            static fn(string $route): ?string => $route === 'sales/invoice' ? 'Magento_Sales::sales_invoice' : 'Magento_Backend::admin'
+        );
+        $results = $this->navigator(['Magento_Backend::admin'])->execute(['query' => 'sales', 'limit' => 2])['results'];
+
+        self::assertCount(2, $results);
+        self::assertNotContains('Invoices', array_column($results, 'label'));
+    }
+
+    /**
+     * A route Magento resolves no controller for is not offered either: there is no way to tell
+     * what guards it.
+     */
+    #[Test]
+    public function aPageWhoseRouteResolvesToNothingIsNotOffered(): void
+    {
+        $this->adminRouteAcl->method('forRoute')->willReturn(null);
+
+        $result = $this->navigator(['Magento_Sales::sales_order'])->execute(['query' => 'orders']);
+
+        self::assertSame([], $result['results']);
     }
 }

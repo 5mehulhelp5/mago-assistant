@@ -6,13 +6,32 @@ declare(strict_types=1);
 
 namespace MagoAssistant\Mago\Service\Skills\Analytics;
 
+use Magento\Framework\AuthorizationInterface;
 use MagoAssistant\Mago\Service\Skills\AbstractSkill;
+use MagoAssistant\Mago\Service\Url\EntityRouteMap;
 
 class CustomerData extends AbstractSkill
 {
+    public function __construct(
+        AuthorizationInterface $authorization,
+        private readonly EntityRouteMap $entityRouteMap,
+        array $actions = []
+    ) {
+        parent::__construct($authorization, $actions);
+    }
+
     public function getName(): string
     {
         return 'customer_data';
+    }
+
+    /**
+     * Searching, counting and listing the customer register is what the Customers grid shows, so
+     * its resource gates it (#148). top_spenders declares its own, which ToolAccess asks first.
+     */
+    public function getMagentoAcl(array $input = []): string
+    {
+        return $this->entityRouteMap->getListAclResource('customer') ?? '';
     }
 
     protected function getBaseDescription(): string

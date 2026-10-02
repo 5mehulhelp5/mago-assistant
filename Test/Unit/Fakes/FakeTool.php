@@ -36,7 +36,7 @@ final class FakeTool implements ToolInterface
         private readonly string $name,
         private readonly array $actions,
         private readonly array $readActions,
-        private readonly string $magentoAcl = ''
+        private readonly string $magentoAcl = 'Magento_Backend::admin'
     ) {
     }
 

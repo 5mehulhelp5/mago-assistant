@@ -17,6 +17,9 @@ use MagoAssistant\Mago\Service\Tool\Verify\ToolVerifier;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeAclResourceProvider;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeAdminArea;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeTool;
+use MagoAssistant\Mago\Service\Acl\ToolAccess;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakePermissionChecker;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
@@ -124,7 +127,8 @@ final class VerifyToolTest extends TestCase
             new ToolRegistry(null, [$tool]),
             new ToolVerifier(
                 new PrivacyFilter(new ConversationVault(), new PiiHeuristic()),
-                new AclResourceIndex(FakeAclResourceProvider::withResources(self::ACL))
+                new AclResourceIndex(FakeAclResourceProvider::withResources(self::ACL)),
+                new ToolAccess(new FakeAuthorization(), new FakePermissionChecker())
             ),
             $this->adminArea
         ));

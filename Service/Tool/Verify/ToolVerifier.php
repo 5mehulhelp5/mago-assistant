@@ -6,7 +6,9 @@ declare(strict_types=1);
 
 namespace MagoAssistant\Mago\Service\Tool\Verify;
 
+use MagoAssistant\Mago\Api\Acl;
 use MagoAssistant\Mago\Api\Tool\ToolInterface;
+use MagoAssistant\Mago\Service\Acl\ToolAccess;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
 use MagoAssistant\Mago\Service\Privacy\PrivacyFilter;
 
@@ -27,7 +29,8 @@ class ToolVerifier
 
     public function __construct(
         private readonly PrivacyFilter $privacyFilter,
-        private readonly AclResourceIndex $aclResources
+        private readonly AclResourceIndex $aclResources,
+        private readonly ToolAccess $toolAccess
     ) {
     }
 
@@ -41,8 +44,8 @@ class ToolVerifier
             $this->checkName($tool),
             $this->checkDescription($tool),
             $this->checkSchema($tool),
-            $this->checkAcl($tool->getMagentoAcl(), 'without input'),
-            ...($params === [] ? [] : [$this->checkAcl($tool->getMagentoAcl($params), 'for this call')]),
+            ...$this->checkAcls($tool, [], 'without input'),
+            ...($params === [] ? [] : $this->checkAcls($tool, $params, 'for this call')),
             $this->checkAccess($tool, $params),
             ...$this->checkClassification($tool->getFieldClassification($this->actionOf($params))),
         ];
@@ -90,11 +93,32 @@ class ToolVerifier
             : ToolCheck::failure('Parameter schema must have "type": "object"');
     }
 
+    /**
+     * One check per resource the call is gated by (the tool's, and the action's when it narrows).
+     *
+     * @param array<string,mixed> $params
+     * @return ToolCheck[]
+     */
+    private function checkAcls(ToolInterface $tool, array $params, string $context): array
+    {
+        return array_map(
+            fn (string $resource): ToolCheck => $this->checkAcl($resource, $context),
+            $this->toolAccess->resourcesFor($tool, $params)
+        );
+    }
+
     private function checkAcl(string $resource, string $context): ToolCheck
     {
         if ($resource === '') {
-            return ToolCheck::warning(
-                'No Magento ACL resource ' . $context . ': every admin with the assistant grant can call it'
+            return ToolCheck::failure(
+                'No ACL resource ' . $context . ': the call is refused for everyone. Declare the Magento '
+                . 'resource guarding this data, or Acl::MAGO_PER_USER for a tool that touches none'
+            );
+        }
+
+        if ($resource === Acl::MAGO_PER_USER) {
+            return ToolCheck::pass(
+                'Gated per user ' . $context . ': only an explicit grant under Stores > Mago > Skills allows it'
             );
         }
 

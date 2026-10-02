@@ -10,12 +10,16 @@ use MagoAssistant\Mago\Service\Privacy\ConversationVault;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
 use MagoAssistant\Mago\Service\Privacy\PiiHeuristic;
 use MagoAssistant\Mago\Service\Privacy\PrivacyFilter;
+use MagoAssistant\Mago\Api\Acl;
 use MagoAssistant\Mago\Service\Tool\Verify\AclResourceIndex;
 use MagoAssistant\Mago\Service\Tool\Verify\CheckStatus;
 use MagoAssistant\Mago\Service\Tool\Verify\ToolCheck;
 use MagoAssistant\Mago\Service\Tool\Verify\ToolVerifier;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeAclResourceProvider;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeTool;
+use MagoAssistant\Mago\Service\Acl\ToolAccess;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakePermissionChecker;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -66,13 +70,32 @@ final class ToolVerifierTest extends TestCase
     }
 
     #[Test]
-    public function itWarnsWhenTheToolHasNoAclResource(): void
+    public function itFailsWhenTheToolHasNoAclResource(): void
     {
-        $tool = (new FakeTool('vies_check', ['check'], ['check']))->withFieldClassification(self::CLASSES);
+        $tool = (new FakeTool('vies_check', ['check'], ['check'], ''))->withFieldClassification(self::CLASSES);
 
         $checks = $this->verifier()->inspect($tool, []);
 
-        self::assertStringContainsString('No Magento ACL resource', $this->messagesWith(CheckStatus::Warning, $checks)[0]);
+        $failure = $this->messagesWith(CheckStatus::Failure, $checks)[0];
+        self::assertStringContainsString('No ACL resource', $failure);
+        self::assertStringContainsString('refused for everyone', $failure);
+        self::assertStringContainsString('Acl::MAGO_PER_USER', $failure);
+    }
+
+    /**
+     * A tool that touches no Magento data says so with the per-user sentinel; that is a complete
+     * declaration, not a missing one, and acl.xml is not expected to know it.
+     */
+    #[Test]
+    public function itPassesAToolGatedPerUser(): void
+    {
+        $tool = (new FakeTool('issue_tracker', ['list'], ['list'], Acl::MAGO_PER_USER))
+            ->withFieldClassification(self::CLASSES);
+
+        $checks = $this->verifier()->inspect($tool, ['action' => 'list']);
+
+        self::assertSame([], $this->messagesWith(CheckStatus::Failure, $checks));
+        self::assertStringContainsString('Gated per user', implode("\n", $this->messagesWith(CheckStatus::Pass, $checks)));
     }
 
     #[Test]
@@ -168,7 +191,8 @@ final class ToolVerifierTest extends TestCase
     {
         return new ToolVerifier(
             new PrivacyFilter(new ConversationVault(), new PiiHeuristic()),
-            new AclResourceIndex(FakeAclResourceProvider::withResources(self::ACL))
+            new AclResourceIndex(FakeAclResourceProvider::withResources(self::ACL)),
+            new ToolAccess(new FakeAuthorization(), new FakePermissionChecker())
         );
     }
 
