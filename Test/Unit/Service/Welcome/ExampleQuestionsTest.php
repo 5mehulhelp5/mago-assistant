@@ -11,6 +11,7 @@ use MagoAssistant\Mago\Service\Skills\PermissionChecker;
 use MagoAssistant\Mago\Service\Tool\ToolRegistry;
 use MagoAssistant\Mago\Service\Welcome\ExampleQuestions;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeTool;
+use MagoAssistant\Mago\Service\Acl\ToolAccess;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -103,6 +104,6 @@ final class ExampleQuestionsTest extends TestCase
             static fn(string $resource): bool => $resource !== $deniedAcl
         );
 
-        return new ExampleQuestions($registry, $authorization, $items);
+        return new ExampleQuestions($registry, new ToolAccess($authorization, $checker), $items);
     }
 }

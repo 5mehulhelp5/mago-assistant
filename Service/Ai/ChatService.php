@@ -16,7 +16,7 @@ use MagoAssistant\Mago\Api\Tool\UpfrontGuidanceToolInterface;
 use MagoAssistant\Mago\Api\Config\RepositoryInterface as ConfigRepository;
 use MagoAssistant\Mago\Logger\DebugLogger;
 use MagoAssistant\Mago\Logger\ErrorLogger;
-use Magento\Framework\AuthorizationInterface;
+use MagoAssistant\Mago\Service\Acl\ToolAccess;
 use MagoAssistant\Mago\Service\Form\PageContextHolder;
 use MagoAssistant\Mago\Service\Store\StoreScopeContext;
 use MagoAssistant\Mago\Service\Privacy\PrivacyService;
@@ -49,11 +49,11 @@ class ChatService implements ChatServiceInterface
         private readonly DebugLogger $debugLogger,
         private readonly ErrorLogger $errorLogger,
         private readonly UsageLogger $usageLogger,
-        private readonly AuthorizationInterface $authorization,
         private readonly StoreScopeContext $storeScopeContext,
         private readonly AnswerWidgets $answerWidgets,
         private readonly PageContextHolder $pageContextHolder,
-        private readonly PrivacyService $privacyService
+        private readonly PrivacyService $privacyService,
+        private readonly ToolAccess $toolAccess
     ) {
     }
 
@@ -922,16 +922,7 @@ class ChatService implements ChatServiceInterface
             );
         }
 
-        $magentoAcl = $tool->getMagentoAcl($input);
-        if ($magentoAcl && !$this->authorization->isAllowed($magentoAcl)) {
-            return sprintf(
-                'Access denied: you do not have the required Magento permission (%s) to use the %s tool',
-                $magentoAcl,
-                $tool->getName()
-            );
-        }
-
-        return null;
+        return $this->toolAccess->denialReason($tool, $input, $adminUserId);
     }
 
     /**

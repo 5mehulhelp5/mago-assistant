@@ -36,6 +36,9 @@ use MagoAssistant\Mago\Api\Tool\ToolInterface;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakePresentableTool;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeTool;
 use PHPUnit\Framework\Attributes\DataProvider;
+use MagoAssistant\Mago\Service\Acl\ToolAccess;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakePermissionChecker;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -128,11 +131,11 @@ final class ChatServiceTest extends TestCase
             new DebugLogger(new FakeLogger(), $json),
             new ErrorLogger(new FakeLogger(), $json),
             $this->createMock(UsageLogger::class),
-            $authorization,
             new StoreScopeContext($this->singleStoreManager()),
             new AnswerWidgets(new ErrorLogger(new FakeLogger(), new Json())),
             new PageContextHolder(),
-            $privacy ?? $this->privacyService()
+            $privacy ?? $this->privacyService(),
+            new ToolAccess($authorization, $checker)
         );
     }
 
@@ -524,11 +527,11 @@ final class ChatServiceTest extends TestCase
             $this->createMock(DebugLogger::class),
             $errorLogger ?? $this->createMock(ErrorLogger::class),
             $this->createMock(UsageLogger::class),
-            $this->createMock(AuthorizationInterface::class),
             new StoreScopeContext($storeManager),
             new AnswerWidgets(new ErrorLogger(new FakeLogger(), new Json())),
             new PageContextHolder(),
-            $this->privacyService()
+            $this->privacyService(),
+            new ToolAccess(new FakeAuthorization(), new FakePermissionChecker())
         );
     }
 
@@ -787,11 +790,11 @@ final class ChatServiceTest extends TestCase
             $this->createMock(DebugLogger::class),
             $this->createMock(ErrorLogger::class),
             $this->createMock(UsageLogger::class),
-            $this->createMock(AuthorizationInterface::class),
             new StoreScopeContext($this->createMock(StoreManagerInterface::class)),
             new AnswerWidgets(new ErrorLogger(new FakeLogger(), new Json())),
             new PageContextHolder(),
-            $this->privacyService()
+            $this->privacyService(),
+            new ToolAccess(new FakeAuthorization(), new FakePermissionChecker())
         );
     }
 

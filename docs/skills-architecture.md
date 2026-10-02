@@ -72,7 +72,7 @@ interface ToolInterface
 | `isReadOnly()` | `true` = all actions are read-only; `false` = tool has at least one write action |
 | `isReadOnlyAction(array $input)` | Checks if a specific invocation is read-only based on input parameters. For tools with mixed read/write sub-actions (e.g. `cms_data`), this checks the actual action. |
 | `getInstructions()` | Detailed usage instructions injected only when the tool is invoked (JIT). Keeps the base prompt lean. |
-| `getMagentoAcl(array $input)` | Native Magento ACL resource for a specific invocation (e.g. `Magento_Backend::cache` for a cache `status` read, `Magento_Backend::flush_cache_storage` for `flush`). Mixed tools return the resource matching the action in `$input`; empty or unknown input must resolve to the most restrictive resource (fail closed). Checked in addition to the assistant skill permissions. Return empty string if not needed. |
+| `getMagentoAcl(array $input)` | Native Magento ACL resource for a specific invocation (e.g. `Magento_Backend::cache` for a cache `status` read, `Magento_Backend::flush_cache_storage` for `flush`). Mixed tools return the resource matching the action in `$input`; empty or unknown input must resolve to the most restrictive resource (fail closed). Checked in addition to the assistant skill permissions. A tool that touches no Magento data returns `Acl::MAGO_PER_USER` instead; an empty string is refused for everyone (see [Access control](#acl--permissions)). |
 
 #### Just-in-Time Instructions
 
@@ -477,19 +477,25 @@ Magento_Backend::admin
 
 ### How It Works
 
-1. **Every tool is gated by the assistant resources** (`assistant_read` for read actions, `assistant_write` for write actions), enforced per invocation by the tool path; tools with a native Magento counterpart additionally declare a per-action resource via `getMagentoAcl(array $input)`.
-2. **Read tools** require `assistant_read` — analytics queries, config reading.
-3. **Write tools** require `assistant_write` — config changes, CMS updates, content generation.
-4. **ACL is checked before execution**, not just at the API level. Even if the AI requests a tool, it won't execute if the admin user's role lacks the required resource.
-5. **Admin roles** in Magento's `System > Permissions > User Roles` control which skills are available per user. An admin with only `assistant_read` will never see write tools offered by the AI — they are excluded from the tool definitions sent to the provider.
+1. **Every tool is gated by the assistant resources** (`assistant_read` for read actions, `assistant_write` for write actions), enforced per invocation by the tool path.
+2. **Every call also declares what it touches**, through `getMagentoAcl(array $input)` on the tool and, for a skill, `getAclResource()` on the action. Both must allow the call: an action can only narrow what its skill requires, never replace it with something broader. `Service\Acl\ToolAccess` reads that declaration the same way wherever a tool is reached — the chat, the welcome screen's example questions, `mago:tool:verify` — and it is one of three things:
+   - **a Magento resource id** (`Magento_Customer::manage`): the admin must hold it, exactly as the admin screen for that data requires. Where the data has an admin screen, derive the resource from it rather than naming it: `EntityRouteMap::getAclResource()` / `getListAclResource()` ask `AdminRouteAcl`, which resolves the route the way Magento's router does and reads `ADMIN_RESOURCE` off the controller — so the tool is gated by whatever Magento enforces on that screen today, and `cms/page/edit` comes out as `Magento_Cms::save` without anyone having to know that;
+   - **`Acl::MAGO_PER_USER`**: the tool touches no Magento data (an external tracker, the assistant's own docs). It is gated by the per-user skill permission alone, and only by an explicit grant there — holding the assistant is not the same as having been given this tool;
+   - **nothing** (`''` or `null`): the tool forgot to say. **It is refused for everyone.** An empty resource used to mean "no check", which is how a tool reading customer records came to be reachable by any admin with the chat grant (#148). `mago:tool:verify` fails on it. This is a breaking change for add-ons that returned `''`: see *Upgrading* in the README.
+3. **Read tools** require `assistant_read` — analytics queries, config reading.
+4. **Write tools** require `assistant_write` — config changes, CMS updates, content generation.
+5. **ACL is checked before execution**, not just at the API level. Even if the AI requests a tool, it won't execute if the admin user's role lacks the required resource.
+6. **Admin roles** in Magento's `System > Permissions > User Roles` control which skills are available per user. An admin with only `assistant_read` will never see write tools offered by the AI — they are excluded from the tool definitions sent to the provider.
 
 ### Per-Role Behavior
 
 | Role has | Tools available | Write confirmation |
 |----------|----------------|-------------------|
-| `assistant_read` | ConfigReader, SalesData, ProductData, CustomerData, AdminNavigator | N/A |
-| `assistant_read` + `assistant_write` | All 10 tools | Required for write tools |
+| `assistant_read` | Read tools - each still only for the data the role's Magento resources cover (`customer_data` needs `Magento_Customer::manage`, `product_data` `Magento_Catalog::products`, ...) | N/A |
+| `assistant_read` + `assistant_write` | Read and write tools, under the same Magento resources | Required for write tools |
 | None | Chat only, no tools | N/A |
+
+A tool declaring `Acl::MAGO_PER_USER` is available only to an admin with an explicit row for it under Stores > Admin Assistant > Skills & Permissions, whatever the role holds.
 
 ### Per-User Skill Permissions
 
@@ -586,8 +592,10 @@ class ServerStatus implements ToolInterface
 
     public function getMagentoAcl(array $input = []): string
     {
-        return ''; // Return e.g. 'Magento_Backend::cache' for native ACL checks;
-                   // mixed tools can switch on $input['action'] per invocation
+        // The Magento resource guarding the data this touches; mixed tools switch on
+        // $input['action']. A tool that touches no Magento data returns Acl::MAGO_PER_USER.
+        // Never '': an empty declaration is refused for everyone.
+        return 'Vendor_HostingIntegration::server_status';
     }
 
     public function getFieldClassification(string $action = ''): array
@@ -626,7 +634,9 @@ class ServerStatus implements ToolInterface
 
 That's it. The `ToolRegistry` picks up the new tool, includes it in AI provider calls, and handles execution within the existing conversation loop.
 
-### Step 3: Add ACL resource (optional but recommended)
+### Step 3: Declare the ACL resource
+
+Every tool declares one (see [Access control](#acl--permissions)); a tool whose data has no Magento screen of its own declares a resource of its module, so a role can be given or denied exactly this:
 
 ```xml
 <!-- Vendor/HostingIntegration/etc/acl.xml -->

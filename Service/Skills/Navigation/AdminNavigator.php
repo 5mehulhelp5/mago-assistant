@@ -6,17 +6,27 @@ declare(strict_types=1);
 
 namespace MagoAssistant\Mago\Service\Skills\Navigation;
 
+use Magento\Framework\AuthorizationInterface;
 use MagoAssistant\Mago\Api\Tool\ToolInterface;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
+use MagoAssistant\Mago\Service\Url\AdminRouteAcl;
 use MagoAssistant\Mago\Service\Url\EntityRouteMap;
 use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
 
 class AdminNavigator implements ToolInterface
 {
+    /**
+     * How many ranked matches to filter by permission before cutting to the requested limit;
+     * more than the registry holds, so a denied page never costs the admin a result.
+     */
+    private const SEARCH_POOL = 50;
+
     public function __construct(
         private readonly PageRegistry $pageRegistry,
         private readonly SecureAdminUrl $secureAdminUrl,
-        private readonly EntityRouteMap $entityRouteMap
+        private readonly EntityRouteMap $entityRouteMap,
+        private readonly AdminRouteAcl $adminRouteAcl,
+        private readonly AuthorizationInterface $authorization
     ) {
     }
 
@@ -86,14 +96,15 @@ class AdminNavigator implements ToolInterface
 
         $category = $params['category'] ?? null;
         $limit = max(1, min((int)($params['limit'] ?? 5), 10));
-        $matches = $this->pageRegistry->search($query, $limit);
-
-        if ($category !== null) {
-            $matches = array_values(array_filter(
-                $matches,
-                fn(array $m) => mb_strtolower($m['category']) === mb_strtolower($category)
-            ));
-        }
+        // Only pages in the asked category that this admin may open - a link to a page that
+        // answers 403 is noise, and the resource guarding each page is the same one Magento checks
+        // on arrival. Both filters run before the cut, so neither costs the admin a result: the
+        // registry is searched past the limit and trimmed afterwards.
+        $matches = array_slice(array_values(array_filter(
+            $this->pageRegistry->search($query, self::SEARCH_POOL),
+            fn(array $m): bool => ($category === null || mb_strtolower((string)$m['category']) === mb_strtolower((string)$category))
+                && $this->mayOpen((string)$m['route'])
+        )), 0, $limit);
 
         if (empty($matches)) {
             return [
@@ -112,6 +123,17 @@ class AdminNavigator implements ToolInterface
         }
 
         return ['results' => $results];
+    }
+
+    /**
+     * A route Magento resolves no controller for is not offered either: there is no way to tell
+     * what guards it, so it is treated as closed.
+     */
+    private function mayOpen(string $route): bool
+    {
+        $resource = $this->adminRouteAcl->forRoute($route);
+
+        return $resource !== null && $this->authorization->isAllowed($resource);
     }
 
     private function resolveEntityLink(string $entityType, int $entityId): array
@@ -165,8 +187,29 @@ class AdminNavigator implements ToolInterface
         ];
     }
 
+    /**
+     * Direct-link mode hands back a working, secret-key-bearing admin link to a named record, so
+     * it is gated by the resource guarding that entity's own admin screen - the way every other
+     * lookup in this codebase is. The link does not bypass the target page's access control when
+     * clicked, but building one still confirms the record exists and hands a valid deep link to it.
+     *
+     * Search mode only names the standard admin pages this module ships a registry of and carries
+     * no entity to gate on, so any logged-in admin may use it: Magento's root admin resource.
+     */
     public function getMagentoAcl(array $input = []): string
     {
-        return '';
+        $entityType = (string)($input['entity_type'] ?? '');
+        if ($entityType === '' || empty($input['entity_id'])) {
+            return 'Magento_Backend::admin';
+        }
+
+        // An entity type the map does not know builds no link: execute() answers "Unknown entity
+        // type", which says more than a permission error would. A known type whose route Magento
+        // resolves nothing for stays closed - that one cannot be told apart from a wrong gate.
+        if ($this->entityRouteMap->getRoute($entityType) === null) {
+            return 'Magento_Backend::admin';
+        }
+
+        return $this->entityRouteMap->getAclResource($entityType) ?? '';
     }
 }

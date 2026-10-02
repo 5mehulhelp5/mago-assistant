@@ -15,6 +15,15 @@ class PageForm extends AbstractSkill
         return 'page_form';
     }
 
+    /**
+     * What comes back is the browser's own snapshot of a form the admin already has open, so any
+     * logged-in admin may use it. The navigate-then-act path is #203 and is not settled by this.
+     */
+    public function getMagentoAcl(array $input = []): string
+    {
+        return 'Magento_Backend::admin';
+    }
+
     protected function getBaseDescription(): string
     {
         return 'Read the fields of the admin form currently open in the browser, including any '

@@ -15,6 +15,7 @@ use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakePermissionChecker;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeSkill;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeTool;
+use MagoAssistant\Mago\Api\Acl;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -333,5 +334,21 @@ final class ToolRegistryTest extends TestCase
         self::assertSame(['stock_level_msi' => $available], $registry->getEnabledTools(self::ADMIN_USER_ID));
         self::assertNull($registry->getToolByName('stock_level'));
         self::assertNull($registry->getTool('stock_level', self::ADMIN_USER_ID));
+    }
+
+    /**
+     * A per-user tool is offered only on an explicit grant - the same answer ToolAccess gives when
+     * it is called. Offering it on the module-wide grant and then refusing it would only have the
+     * model try.
+     */
+    #[Test]
+    public function aPerUserToolIsOfferedOnlyOnAnExplicitGrant(): void
+    {
+        $tool = new FakeTool('issue_tracker', ['list'], ['list'], Acl::MAGO_PER_USER);
+        $blanketOnly = (new FakePermissionChecker())->withDecision('issue_tracker', 'read', true);
+        $explicit = (new FakePermissionChecker())->withExplicitGrant('issue_tracker', 'read');
+
+        self::assertSame([], (new ToolRegistry($blanketOnly, [$tool]))->getEnabledTools(7));
+        self::assertSame([$tool], array_values((new ToolRegistry($explicit, [$tool]))->getEnabledTools(7)));
     }
 }

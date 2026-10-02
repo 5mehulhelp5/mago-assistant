@@ -28,6 +28,7 @@ use MagoAssistant\Mago\Test\Unit\Fakes\FakeLogger;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakePermissionChecker;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeSkill;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeUsageLogger;
+use MagoAssistant\Mago\Service\Acl\ToolAccess;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -198,11 +199,11 @@ final class ChatServiceToolConfirmationTest extends TestCase
             new DebugLogger(new FakeLogger(), $json),
             new ErrorLogger(new FakeLogger(), $json),
             new FakeUsageLogger(),
-            $authorization,
             new StoreScopeContext($this->singleStoreManager()),
             new AnswerWidgets(new ErrorLogger(new FakeLogger(), new Json())),
             new PageContextHolder(),
-            new PrivacyService(new PrivacyFilter($vault, new PiiHeuristic()), $vault, new PiiHeuristic())
+            new PrivacyService(new PrivacyFilter($vault, new PiiHeuristic()), $vault, new PiiHeuristic()),
+            new ToolAccess($authorization, $this->permissions)
         );
     }
 

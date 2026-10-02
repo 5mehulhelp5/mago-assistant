@@ -61,7 +61,9 @@ The methods, and what goes wrong with each:
   shown, so only offer parameters that are always safe to receive. Removing a parameter works
   better than a description asking the model not to use it.
 - `getMagentoAcl(array $input = [])`: an empty `$input` must return the most restrictive resource
-  the tool can reach (fail closed). Return `''` only when the assistant permission is enough.
+  the tool can reach (fail closed). A tool that touches no Magento data returns
+  `Acl::MAGO_PER_USER`, which gates it by the per-user skill permission alone. Never `''`: an
+  empty declaration is refused for everyone, and `mago:tool:verify` fails on it.
 - `isReadOnly()` / `isReadOnlyAction(array $input)`: `false` triggers a confirmation in the panel.
   A mixed tool answers per action, and an unknown action counts as a write.
 - `getFieldClassification(string $action = '')`: a whitelist, see step 4.
@@ -146,7 +148,9 @@ empty while their data patches stay marked as applied. Use a throwaway database 
 
 Access: an admin can use the tool when they hold `MagoAssistant_Mago::assistant_read` (or
 `assistant_write` for writes), unless a row in `mago_skill_permission` for that admin and tool
-says otherwise, and the Magento ACL resource from `getMagentoAcl()` allows it.
+says otherwise, and the Magento ACL resource from `getMagentoAcl()` allows it. A tool declaring
+`Acl::MAGO_PER_USER` instead needs that row — an explicit grant under Stores > Admin Assistant > Skills & Permissions — and
+is not covered by the module-wide resources.
 
 ## 6. README
 
