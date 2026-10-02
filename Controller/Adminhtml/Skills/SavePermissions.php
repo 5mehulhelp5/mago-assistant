@@ -28,6 +28,7 @@ class SavePermissions extends Action implements HttpPostActionInterface
     public function execute(): ResultInterface
     {
         $skillName = $this->getRequest()->getParam('skill_name', '');
+        $skillName = is_string($skillName) ? $skillName : '';
         $permissions = $this->getRequest()->getParam('permissions', []);
         $permissions = is_array($permissions) ? $permissions : [];
 
@@ -37,7 +38,7 @@ class SavePermissions extends Action implements HttpPostActionInterface
         }
 
         // A row is the only grant a per-user tool has, so never store one for a name no tool carries
-        if ($this->toolRegistry->getToolByName((string)$skillName) === null) {
+        if ($this->toolRegistry->getToolByName($skillName) === null) {
             $this->messageManager->addErrorMessage(__('Unknown skill "%1".', $skillName));
             return $this->resultRedirectFactory->create()->setPath('mago/skills/index');
         }

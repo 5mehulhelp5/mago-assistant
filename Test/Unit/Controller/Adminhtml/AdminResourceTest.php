@@ -44,7 +44,7 @@ final class AdminResourceTest extends TestCase
         foreach (glob(self::MODULE_DIR . '/Controller/Adminhtml/*/*.php') ?: [] as $file) {
             $source = (string)file_get_contents($file);
             $name = basename(dirname($file)) . '/' . basename($file);
-            if (!preg_match('/^class /m', $source)) {
+            if (preg_match('/^trait /m', $source)) {
                 continue;
             }
 

@@ -20,20 +20,53 @@ final class GrantSplitScreenResourcesTest extends TestCase
     private AdapterInterface&MockObject $connection;
     private CacheInterface&MockObject $aclCache;
 
+    /**
+     * @var array<int, array{string, mixed}>
+     */
+    private array $roleConditions = [];
+
     protected function setUp(): void
     {
-        $select = $this->createMock(Select::class);
-        $select->method('from')->willReturnSelf();
-        $select->method('where')->willReturnSelf();
+        $this->roleConditions = [];
+        $roleSelect = $this->createMock(Select::class);
+        $roleSelect->method('from')->willReturnSelf();
+        $roleSelect->method('where')->willReturnCallback(function (string $condition, mixed $value) use ($roleSelect) {
+            $this->roleConditions[] = [$condition, $value];
+
+            return $roleSelect;
+        });
+        $existingSelect = $this->createMock(Select::class);
+        $existingSelect->method('from')->willReturnSelf();
+        $existingSelect->method('where')->willReturnSelf();
+
         $this->connection = $this->createMock(AdapterInterface::class);
-        $this->connection->method('select')->willReturn($select);
+        $this->connection->method('select')->willReturnOnConsecutiveCalls($roleSelect, $existingSelect);
         $this->aclCache = $this->createMock(CacheInterface::class);
+    }
+
+    /**
+     * Every role saved in the role editor has a row for the config resource, a deny one when unticked,
+     * so only an allow may count as holding it.
+     */
+    #[Test]
+    public function onlyRolesThatAllowTheConfigResourceAreSelected(): void
+    {
+        $this->connection->method('fetchCol')->willReturn([]);
+
+        $this->patch()->apply();
+
+        self::assertSame(
+            [['resource_id = ?', 'MagoAssistant_Mago::config'], ['permission = ?', 'allow']],
+            $this->roleConditions
+        );
     }
 
     #[Test]
     public function aConfigRoleKeepsStatisticsAndSkillsButNotConversations(): void
     {
         $this->connection->method('fetchCol')->willReturn(['4']);
+        $this->connection->method('fetchAll')->willReturn([]);
+        $this->connection->expects(self::never())->method('delete');
         $this->connection->expects(self::once())->method('insertMultiple')->with(
             'authorization_rule',
             self::callback(static function (array $rows): bool {
@@ -44,7 +77,27 @@ final class GrantSplitScreenResourcesTest extends TestCase
                     && array_unique(array_column($rows, 'role_id')) === [4];
             })
         );
+        $this->connection->expects(self::once())->method('commit');
         $this->aclCache->expects(self::once())->method('clean');
+
+        $this->patch()->apply();
+    }
+
+    #[Test]
+    public function aRowTheRoleAlreadyHasIsLeftAlone(): void
+    {
+        $this->connection->method('fetchCol')->willReturn(['4']);
+        $this->connection->method('fetchAll')->willReturn([
+            ['role_id' => '4', 'resource_id' => 'MagoAssistant_Mago::skills_write'],
+        ]);
+        $this->connection->expects(self::once())->method('insertMultiple')->with(
+            'authorization_rule',
+            self::callback(static fn(array $rows): bool => !in_array(
+                'MagoAssistant_Mago::skills_write',
+                array_column($rows, 'resource_id'),
+                true
+            ) && count($rows) === 3)
+        );
 
         $this->patch()->apply();
     }
@@ -54,7 +107,7 @@ final class GrantSplitScreenResourcesTest extends TestCase
     {
         $this->connection->method('fetchCol')->willReturn([]);
         $this->connection->expects(self::never())->method('insertMultiple');
-        $this->connection->expects(self::never())->method('delete');
+        $this->aclCache->expects(self::never())->method('clean');
 
         $this->patch()->apply();
     }

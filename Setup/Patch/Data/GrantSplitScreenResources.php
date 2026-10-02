@@ -14,7 +14,8 @@ use Magento\Framework\Setup\Patch\DataPatchInterface;
  * Statistics and skill permissions used to sit behind MagoAssistant_Mago::config and now have their
  * own resources (#195). A role that held the config grant keeps them, so the upgrade takes nothing
  * away silently. Conversations are left out on purpose: reading every admin's transcripts with only
- * the config grant was the gap this closed.
+ * the config grant was the gap this closed. A role that already has a row for a resource (a role
+ * saved after deploy) keeps it, so an explicit deny is never turned into an allow.
  */
 class GrantSplitScreenResources implements DataPatchInterface
 {
@@ -48,15 +49,36 @@ class GrantSplitScreenResources implements DataPatchInterface
             return $this;
         }
 
-        $connection->delete($table, ['role_id IN (?)' => $roleIds, 'resource_id IN (?)' => self::GRANTED_RESOURCES]);
+        $existing = [];
+        foreach ($connection->fetchAll(
+            $connection->select()
+                ->from($table, ['role_id', 'resource_id'])
+                ->where('role_id IN (?)', $roleIds)
+                ->where('resource_id IN (?)', self::GRANTED_RESOURCES)
+        ) as $row) {
+            $existing[(int)$row['role_id'] . '|' . $row['resource_id']] = true;
+        }
 
         $rows = [];
         foreach ($roleIds as $roleId) {
             foreach (self::GRANTED_RESOURCES as $resource) {
-                $rows[] = ['role_id' => (int)$roleId, 'resource_id' => $resource, 'permission' => 'allow'];
+                if (!isset($existing[(int)$roleId . '|' . $resource])) {
+                    $rows[] = ['role_id' => (int)$roleId, 'resource_id' => $resource, 'permission' => 'allow'];
+                }
             }
         }
-        $connection->insertMultiple($table, $rows);
+        if ($rows === []) {
+            return $this;
+        }
+
+        $connection->beginTransaction();
+        try {
+            $connection->insertMultiple($table, $rows);
+            $connection->commit();
+        } catch (\Throwable $e) {
+            $connection->rollBack();
+            throw $e;
+        }
         $this->aclCache->clean();
 
         return $this;
