@@ -248,9 +248,20 @@ and how to add scenarios.
 
 | ACL Resource | Grants |
 |---|---|
-| `MagoAssistant_Mago::config` | Module configuration access |
+| `MagoAssistant_Mago::config` | Module configuration (Stores > Configuration > Mago) |
 | `MagoAssistant_Mago::assistant_read` | Read-only tools (analytics, config reading, navigation) |
 | `MagoAssistant_Mago::assistant_write` | Write tools (config changes, CMS, content generation) |
+| `MagoAssistant_Mago::conversations` | Conversations grid and transcripts of every admin, continue a conversation |
+| `MagoAssistant_Mago::conversations_delete` | Delete conversations |
+| `MagoAssistant_Mago::flags` | Answer feedback (also needs `conversations`) |
+| `MagoAssistant_Mago::statistics` | Statistics and dashboard |
+| `MagoAssistant_Mago::skills_read` | View per-user skill permissions |
+| `MagoAssistant_Mago::skills_write` | Edit per-user skill permissions |
+
+Each screen asks for its own resource. A role that held `MagoAssistant_Mago::config` used to reach
+conversations, statistics and skill permissions too. On upgrade it keeps statistics and skill permissions
+(data patch `GrantSplitScreenResources`), but not conversations: grant `MagoAssistant_Mago::conversations`
+explicitly to roles that should read other admins' transcripts.
 
 ## Data & privacy
 

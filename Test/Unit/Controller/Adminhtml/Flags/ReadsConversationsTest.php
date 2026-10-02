@@ -21,7 +21,7 @@ use PHPUnit\Framework\TestCase;
 final class ReadsConversationsTest extends TestCase
 {
     private const FLAGS = 'MagoAssistant_Mago::flags';
-    private const CONVERSATIONS = 'MagoAssistant_Mago::config';
+    private const CONVERSATIONS = 'MagoAssistant_Mago::conversations';
 
     #[Test]
     public function itAllowsAnAdminWithBothTheFlagsAndTheConversationsGrant(): void

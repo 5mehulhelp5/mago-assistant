@@ -107,7 +107,7 @@ so no copy is left in `var/`.
 | `MagoAssistant_Mago::flags_delete` | Delete flags |
 
 A flag is a copy of another admin's conversation, so every Answer Feedback action also needs
-`MagoAssistant_Mago::config`, the resource the Conversations screen is behind.
+`MagoAssistant_Mago::conversations`, the resource the Conversations screen is behind.
 
 Rating itself needs `MagoAssistant_Mago::assistant_read` — anyone who can use the panel can rate
 what it answers.

@@ -472,7 +472,16 @@ Magento_Backend::admin
 │
 └── MagoAssistant_Mago::assistant                    # Parent resource
     ├── MagoAssistant_Mago::assistant_read           # Read operations
-    └── MagoAssistant_Mago::assistant_write          # Write operations
+    ├── MagoAssistant_Mago::assistant_write          # Write operations
+    ├── MagoAssistant_Mago::conversations            # Conversations screen (every admin's transcripts)
+    │   └── MagoAssistant_Mago::conversations_delete
+    ├── MagoAssistant_Mago::flags                    # Answer feedback (also needs conversations)
+    │   ├── MagoAssistant_Mago::flags_export
+    │   └── MagoAssistant_Mago::flags_delete
+    ├── MagoAssistant_Mago::statistics               # Statistics and dashboard
+    └── MagoAssistant_Mago::skills                   # Per-user skill permissions
+        ├── MagoAssistant_Mago::skills_read
+        └── MagoAssistant_Mago::skills_write
 ```
 
 ### How It Works

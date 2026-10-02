@@ -9,16 +9,18 @@ namespace MagoAssistant\Mago\Controller\Adminhtml\Skills;
 use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
 use Magento\Framework\App\Action\HttpPostActionInterface;
-use Magento\Framework\Controller\ResultInterface;
 use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\Controller\ResultInterface;
+use MagoAssistant\Mago\Service\Tool\ToolRegistry;
 
 class SavePermissions extends Action implements HttpPostActionInterface
 {
-    public const ADMIN_RESOURCE = 'MagoAssistant_Mago::config';
+    public const ADMIN_RESOURCE = 'MagoAssistant_Mago::skills_write';
 
     public function __construct(
         Context $context,
-        private readonly ResourceConnection $resourceConnection
+        private readonly ResourceConnection $resourceConnection,
+        private readonly ToolRegistry $toolRegistry
     ) {
         parent::__construct($context);
     }
@@ -27,9 +29,16 @@ class SavePermissions extends Action implements HttpPostActionInterface
     {
         $skillName = $this->getRequest()->getParam('skill_name', '');
         $permissions = $this->getRequest()->getParam('permissions', []);
+        $permissions = is_array($permissions) ? $permissions : [];
 
         if (!$skillName) {
             $this->messageManager->addErrorMessage(__('Skill name is required.'));
+            return $this->resultRedirectFactory->create()->setPath('mago/skills/index');
+        }
+
+        // A row is the only grant a per-user tool has, so never store one for a name no tool carries
+        if ($this->toolRegistry->getToolByName((string)$skillName) === null) {
+            $this->messageManager->addErrorMessage(__('Unknown skill "%1".', $skillName));
             return $this->resultRedirectFactory->create()->setPath('mago/skills/index');
         }
 
@@ -51,7 +60,7 @@ class SavePermissions extends Action implements HttpPostActionInterface
                     continue;
                 }
 
-                if (!in_array($permission, ['read', 'write', 'disabled'])) {
+                if (!in_array($permission, ['read', 'write', 'disabled'], true)) {
                     continue;
                 }
 
