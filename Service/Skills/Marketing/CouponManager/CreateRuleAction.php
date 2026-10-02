@@ -42,7 +42,8 @@ class CreateRuleAction implements ActionInterface
             ],
             'discount_amount' => [
                 'type' => 'number',
-                'description' => 'Discount amount (e.g. 20 for 20% or 20 for $20 off)',
+                'description' => 'Discount amount (e.g. 20 for 20% or 20 for $20 off). '
+                    . 'For "percent" this is a percentage and must be between 0 and 100.',
             ],
             'coupon_code' => [
                 'type' => 'string',
@@ -119,6 +120,18 @@ class CreateRuleAction implements ActionInterface
             'free_shipping' => 'by_percent',
             default => 'by_percent',
         };
+
+        // Magento's own cart rule form only asks for zero or greater and clamps a percentage to
+        // 100 at apply time (Rule\Action\Discount\ByPercent), so this is stricter than the admin
+        // screen on purpose: a percentage above 100 can only be a mistake in the tool call, and
+        // the rule would still read as 500% everywhere it is shown. free_shipping maps to
+        // by_percent too but overwrites discount_amount with 0 further down, so the bound only
+        // applies to the types that actually spend this value.
+        if ($simpleAction === 'by_percent' && $discountType !== 'free_shipping'
+            && ($discountAmount < 0 || $discountAmount > 100)
+        ) {
+            return ['error' => 'discount_amount must be between 0 and 100 for a percentage discount'];
+        }
 
         // Determine coupon type and code
         $couponCode = trim((string)($params['coupon_code'] ?? ''));

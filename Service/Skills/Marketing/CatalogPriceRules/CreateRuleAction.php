@@ -11,6 +11,7 @@ use Magento\CatalogRule\Model\Rule\Condition\Combine;
 use Magento\CatalogRule\Model\Rule\Condition\Product;
 use Magento\CatalogRule\Model\RuleFactory;
 use Magento\Customer\Model\ResourceModel\Group\CollectionFactory as CustomerGroupCollectionFactory;
+use Magento\Framework\DataObject;
 use Magento\Store\Model\StoreManagerInterface;
 use MagoAssistant\Mago\Api\Skill\ActionInterface;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
@@ -50,7 +51,9 @@ class CreateRuleAction implements ActionInterface
             ],
             'discount_amount' => [
                 'type' => 'number',
-                'description' => 'Discount amount',
+                'description' => 'Discount amount. For "percent" and "to_percent" this is a '
+                    . 'percentage and must be between 0 and 100; for the fixed types it must be 0 '
+                    . 'or greater.',
             ],
             'from_date' => [
                 'type' => 'string',
@@ -181,6 +184,17 @@ class CreateRuleAction implements ActionInterface
                     ],
                 ];
                 $rule->getConditions()->loadArray($conditions);
+            }
+
+            // The admin's own save controller runs this; CatalogRuleRepositoryInterface::save()
+            // does not, so a rule saved through it skips every check Magento makes on one. That
+            // matters most for by_percent: the indexer computes price * (1 - amount/100) with no
+            // clamp of its own (ProductPriceCalculator), so an amount above 100 indexes a negative
+            // price. Asking Magento rather than bounding the amount here also picks up its checks
+            // on fixed amounts, unknown actions and the rule's dates, in Magento's own words.
+            $validation = $rule->validateData(new DataObject($rule->getData()));
+            if ($validation !== true) {
+                return ['error' => implode(' ', array_map('strval', (array)$validation))];
             }
 
             $this->catalogRuleRepository->save($rule);
