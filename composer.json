@@ -1,5 +1,5 @@
 {
-    "name": "mago-assistant/mago",
+    "name": "mago-assistant/magento2-mago",
     "description": "AI-powered admin assistant for Magento 2. Chat with your store using Anthropic, OpenAI, Gemini, Ollama and more.",
     "type": "magento2-module",
     "license": "MIT",

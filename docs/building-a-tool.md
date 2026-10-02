@@ -3,7 +3,7 @@
 A step-by-step guide for adding a tool the admin chat can call, written for developers and for
 coding agents alike. A tool lives in its own Magento module: one class implementing
 `MagoAssistant\Mago\Api\Tool\ToolInterface` and one `di.xml` entry that adds it to
-`MagoAssistant\Mago\Service\Tool\ToolRegistry`. Nothing inside `vendor/mago-assistant/mago` is
+`MagoAssistant\Mago\Service\Tool\ToolRegistry`. Nothing inside `vendor/mago-assistant/magento2-mago` is
 edited. Reference implementation: https://github.com/mago-assistant/vies
 
 For the architecture behind it, see [skills-architecture.md](skills-architecture.md).
@@ -14,7 +14,7 @@ Point your agent at this file. Most agents read `AGENTS.md` in the project root 
 `CLAUDE.md`, which can contain the single line `@AGENTS.md`). Add:
 
 ```markdown
-When asked to build a Mago tool or skill, follow vendor/mago-assistant/mago/docs/building-a-tool.md.
+When asked to build a Mago tool or skill, follow vendor/mago-assistant/magento2-mago/docs/building-a-tool.md.
 ```
 
 The guide always matches the installed Mago version, so there is nothing to copy or keep in sync.

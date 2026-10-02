@@ -99,7 +99,7 @@ class CreateTool extends Command
         $this->writeAclWarning($output, $scaffold);
         $output->writeln(['', 'Next steps, from the Magento root:']);
         $this->writeNextSteps($output, $scaffold, $moduleDirectory);
-        $output->writeln(['', 'Guide: vendor/mago-assistant/mago/docs/building-a-tool.md']);
+        $output->writeln(['', 'Guide: vendor/mago-assistant/magento2-mago/docs/building-a-tool.md']);
 
         return Command::SUCCESS;
     }
