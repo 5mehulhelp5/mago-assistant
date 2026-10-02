@@ -11,6 +11,7 @@ use Magento\CatalogRule\Model\Rule\Condition\Combine;
 use Magento\CatalogRule\Model\Rule\Condition\Product;
 use Magento\CatalogRule\Model\RuleFactory;
 use Magento\Customer\Model\ResourceModel\Group\CollectionFactory as CustomerGroupCollectionFactory;
+use Magento\Framework\DataObject;
 use Magento\Store\Model\StoreManagerInterface;
 use MagoAssistant\Mago\Api\Skill\ActionInterface;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
@@ -50,7 +51,8 @@ class CreateRuleAction implements ActionInterface
             ],
             'discount_amount' => [
                 'type' => 'number',
-                'description' => 'Discount amount',
+                'description' => 'Discount amount, greater than 0. For "percent" and "to_percent" '
+                    . 'this is a percentage and must be at most 100.',
             ],
             'from_date' => [
                 'type' => 'string',
@@ -181,6 +183,13 @@ class CreateRuleAction implements ActionInterface
                     ],
                 ];
                 $rule->getConditions()->loadArray($conditions);
+            }
+
+            // The admin's save controller runs this and CatalogRuleRepositoryInterface::save() does
+            // not; without it a percentage above 100 indexes a negative price (ProductPriceCalculator).
+            $validation = $rule->validateData(new DataObject($rule->getData()));
+            if ($validation !== true) {
+                return ['error' => implode(' ', array_map('strval', (array)$validation))];
             }
 
             $this->catalogRuleRepository->save($rule);
