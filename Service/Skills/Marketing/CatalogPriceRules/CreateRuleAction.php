@@ -51,9 +51,8 @@ class CreateRuleAction implements ActionInterface
             ],
             'discount_amount' => [
                 'type' => 'number',
-                'description' => 'Discount amount. For "percent" and "to_percent" this is a '
-                    . 'percentage and must be between 0 and 100; for the fixed types it must be 0 '
-                    . 'or greater.',
+                'description' => 'Discount amount, greater than 0. For "percent" and "to_percent" '
+                    . 'this is a percentage and must be at most 100.',
             ],
             'from_date' => [
                 'type' => 'string',
@@ -186,12 +185,8 @@ class CreateRuleAction implements ActionInterface
                 $rule->getConditions()->loadArray($conditions);
             }
 
-            // The admin's own save controller runs this; CatalogRuleRepositoryInterface::save()
-            // does not, so a rule saved through it skips every check Magento makes on one. That
-            // matters most for by_percent: the indexer computes price * (1 - amount/100) with no
-            // clamp of its own (ProductPriceCalculator), so an amount above 100 indexes a negative
-            // price. Asking Magento rather than bounding the amount here also picks up its checks
-            // on fixed amounts, unknown actions and the rule's dates, in Magento's own words.
+            // The admin's save controller runs this and CatalogRuleRepositoryInterface::save() does
+            // not; without it a percentage above 100 indexes a negative price (ProductPriceCalculator).
             $validation = $rule->validateData(new DataObject($rule->getData()));
             if ($validation !== true) {
                 return ['error' => implode(' ', array_map('strval', (array)$validation))];

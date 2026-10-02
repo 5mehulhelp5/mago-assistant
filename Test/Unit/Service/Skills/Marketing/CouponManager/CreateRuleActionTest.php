@@ -9,6 +9,7 @@ namespace MagoAssistant\Mago\Test\Unit\Service\Skills\Marketing\CouponManager;
 use MagoAssistant\Mago\Service\Api\InternalApiClient;
 use MagoAssistant\Mago\Service\Skills\Marketing\CouponManager\CreateRuleAction;
 use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -60,14 +61,30 @@ class CreateRuleActionTest extends TestCase
         );
     }
 
+    /**
+     * A negative amount raises the grand total instead of discounting it, so no type accepts one.
+     *
+     * @return array<string,array{0:string}>
+     */
+    public static function discountTypes(): array
+    {
+        return [
+            'percent' => ['percent'],
+            'fixed' => ['fixed'],
+            'free_shipping' => ['free_shipping'],
+            'unknown type' => ['nonsense'],
+        ];
+    }
+
     #[Test]
-    public function aNegativePercentageIsRejected(): void
+    #[DataProvider('discountTypes')]
+    public function aNegativeAmountIsRejectedForEveryType(string $discountType): void
     {
         $this->expectNoRuleIsCreated();
 
-        $result = $this->create(['discount_type' => 'percent', 'discount_amount' => -10]);
+        $result = $this->create(['discount_type' => $discountType, 'discount_amount' => -10]);
 
-        self::assertArrayHasKey('error', $result);
+        self::assertSame('discount_amount must be 0 or greater', $result['error'] ?? null);
     }
 
     /**
@@ -137,6 +154,7 @@ class CreateRuleActionTest extends TestCase
     {
         $description = $this->action()->getParameterSchema()['discount_amount']['description'];
 
-        self::assertStringContainsString('between 0 and 100', $description);
+        self::assertStringContainsString('0 or greater', $description);
+        self::assertStringContainsString('at most 100', $description);
     }
 }

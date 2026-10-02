@@ -9,6 +9,7 @@ namespace MagoAssistant\Mago\Test\Unit\Service\Skills\Marketing\CatalogPriceRule
 use Magento\CatalogRule\Api\CatalogRuleRepositoryInterface;
 use Magento\CatalogRule\Model\Rule;
 use Magento\CatalogRule\Model\RuleFactory;
+use Magento\Framework\DataObject;
 use MagoAssistant\Mago\Service\Skills\Marketing\CatalogPriceRules\CreateRuleAction;
 use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
 use PHPUnit\Framework\Attributes\Test;
@@ -103,6 +104,10 @@ class CreateRuleActionTest extends TestCase
     public function aRuleMagentoRejectsIsNotSaved(): void
     {
         $this->rule->expects(self::once())->method('validateData')
+            ->with(self::callback(
+                static fn(DataObject $data): bool => $data->getData('simple_action') === 'by_percent'
+                    && $data->getData('discount_amount') === 500.0
+            ))
             ->willReturn([__('Percentage discount should be between 0 and 100.')]);
         $this->catalogRuleRepository->expects(self::never())->method('save');
 
@@ -156,7 +161,7 @@ class CreateRuleActionTest extends TestCase
     {
         $description = $this->action->getParameterSchema()['discount_amount']['description'];
 
-        self::assertStringContainsString('between 0 and 100', $description);
-        self::assertStringContainsString('0 or greater', $description);
+        self::assertStringContainsString('greater than 0', $description);
+        self::assertStringContainsString('at most 100', $description);
     }
 }
