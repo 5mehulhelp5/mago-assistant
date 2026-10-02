@@ -21,9 +21,10 @@ namespace MagoAssistant\Mago\Api;
 class Acl
 {
     /**
-     * The tool is gated by the assistant's own per-user skill permission alone (Stores > Mago >
-     * Skills), and only by an explicit grant there: the module-wide assistant_read/assistant_write
-     * resources do not stand in for it. Use it for a tool that touches no Magento data.
+     * The tool is gated by the assistant's own per-user skill permission alone (Stores > Admin
+     * Assistant > Skills & Permissions), and only by an explicit grant there: the module-wide
+     * assistant_read/assistant_write resources do not stand in for it. Use it for a tool that
+     * touches no Magento data.
      */
     public const MAGO_PER_USER = 'mago:per_user';
 }

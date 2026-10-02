@@ -96,20 +96,15 @@ class AdminNavigator implements ToolInterface
 
         $category = $params['category'] ?? null;
         $limit = max(1, min((int)($params['limit'] ?? 5), 10));
-        // Only pages this admin may open: a link to a page that answers 403 is noise, and the
-        // resource guarding each page is the same one Magento checks on arrival. The registry is
-        // searched past the limit and cut afterwards, so a denied page does not cost a result.
+        // Only pages in the asked category that this admin may open - a link to a page that
+        // answers 403 is noise, and the resource guarding each page is the same one Magento checks
+        // on arrival. Both filters run before the cut, so neither costs the admin a result: the
+        // registry is searched past the limit and trimmed afterwards.
         $matches = array_slice(array_values(array_filter(
             $this->pageRegistry->search($query, self::SEARCH_POOL),
-            fn(array $m): bool => $this->mayOpen((string)$m['route'])
+            fn(array $m): bool => ($category === null || mb_strtolower((string)$m['category']) === mb_strtolower((string)$category))
+                && $this->mayOpen((string)$m['route'])
         )), 0, $limit);
-
-        if ($category !== null) {
-            $matches = array_values(array_filter(
-                $matches,
-                fn(array $m) => mb_strtolower($m['category']) === mb_strtolower($category)
-            ));
-        }
 
         if (empty($matches)) {
             return [

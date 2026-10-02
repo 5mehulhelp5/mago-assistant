@@ -149,7 +149,7 @@ empty while their data patches stay marked as applied. Use a throwaway database 
 Access: an admin can use the tool when they hold `MagoAssistant_Mago::assistant_read` (or
 `assistant_write` for writes), unless a row in `mago_skill_permission` for that admin and tool
 says otherwise, and the Magento ACL resource from `getMagentoAcl()` allows it. A tool declaring
-`Acl::MAGO_PER_USER` instead needs that row — an explicit grant under Stores > Mago > Skills — and
+`Acl::MAGO_PER_USER` instead needs that row — an explicit grant under Stores > Admin Assistant > Skills & Permissions — and
 is not covered by the module-wide resources.
 
 ## 6. README

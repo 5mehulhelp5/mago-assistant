@@ -118,7 +118,7 @@ class ToolVerifier
 
         if ($resource === Acl::MAGO_PER_USER) {
             return ToolCheck::pass(
-                'Gated per user ' . $context . ': only an explicit grant under Stores > Mago > Skills allows it'
+                'Gated per user ' . $context . ': only an explicit grant under Stores > Admin Assistant > Skills & Permissions allows it'
             );
         }
 

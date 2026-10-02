@@ -155,6 +155,21 @@ class AdminNavigatorTest extends TestCase
     }
 
     /**
+     * The category filter runs before the limit too, for the same reason: a search narrowed to a
+     * category still fills its limit from that category.
+     */
+    #[Test]
+    public function aCategoryFilterDoesNotCostTheAdminAResultEither(): void
+    {
+        $this->adminRouteAcl->method('forRoute')->willReturn('Magento_Backend::admin');
+
+        $results = $this->navigator()->execute(['query' => 'product catalog', 'category' => 'Catalog', 'limit' => 2])['results'];
+
+        self::assertCount(2, $results);
+        self::assertSame(['Catalog', 'Catalog'], array_column($results, 'category'));
+    }
+
+    /**
      * A route Magento resolves no controller for is not offered either: there is no way to tell
      * what guards it.
      */

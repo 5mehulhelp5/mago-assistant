@@ -495,7 +495,7 @@ Magento_Backend::admin
 | `assistant_read` + `assistant_write` | Read and write tools, under the same Magento resources | Required for write tools |
 | None | Chat only, no tools | N/A |
 
-A tool declaring `Acl::MAGO_PER_USER` is available only to an admin with an explicit row for it under Stores > Mago > Skills, whatever the role holds.
+A tool declaring `Acl::MAGO_PER_USER` is available only to an admin with an explicit row for it under Stores > Admin Assistant > Skills & Permissions, whatever the role holds.
 
 ### Per-User Skill Permissions
 
