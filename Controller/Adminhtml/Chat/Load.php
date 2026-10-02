@@ -58,11 +58,11 @@ class Load extends Action implements HttpPostActionInterface
                 }
             }
 
-            // Which answers already carry a flag, so a reloaded conversation shows them as flagged
-            // instead of offering to flag them again.
-            $flagged = array_flip($this->flagRepository->flaggedAmong(array_column($messages, 'entity_id')));
+            // How answers were already rated, so a reloaded conversation shows its thumbs instead of
+            // offering to rate them again.
+            $ratings = $this->flagRepository->ratingsAmong(array_column($messages, 'entity_id'));
             foreach ($messages as $index => $message) {
-                $messages[$index]['flagged'] = isset($flagged[(int)($message['entity_id'] ?? 0)]);
+                $messages[$index]['rating'] = $ratings[(int)($message['entity_id'] ?? 0)] ?? null;
             }
 
             return $result->setData([

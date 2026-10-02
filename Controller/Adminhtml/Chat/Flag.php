@@ -18,9 +18,9 @@ use MagoAssistant\Mago\Logger\ErrorLogger;
 use MagoAssistant\Mago\Service\Flag\FlagRepository;
 
 /**
- * Flags an answer, or takes the flag off again. The panel calls this from the flag button under an
- * assistant message; flagging reads nothing but the conversation the admin already has open, so a
- * read grant is enough.
+ * Rates an answer with a thumbs up or down, adds the optional note to that rating, or takes it off
+ * again. The panel calls this from the thumbs under an assistant message; rating reads nothing but
+ * the conversation the admin already has open, so a read grant is enough.
  */
 class Flag extends Action implements HttpPostActionInterface
 {
@@ -28,7 +28,7 @@ class Flag extends Action implements HttpPostActionInterface
 
     public const ADMIN_RESOURCE = 'MagoAssistant_Mago::assistant_read';
 
-    /** A note is a sentence about what went wrong, not a place to paste a log */
+    /** A note is a sentence about the answer, not a place to paste a log */
     private const MAX_NOTE_LENGTH = 2000;
 
     public function __construct(
@@ -62,23 +62,36 @@ class Flag extends Action implements HttpPostActionInterface
             }
 
             // Throws when the message is not in a conversation of this admin, which is the whole
-            // ownership check: a flag must not be a way to read someone else's conversation.
+            // ownership check: feedback must not be a way to read someone else's conversation.
             $this->conversationRepository->getMessageForUser($messageId, $adminUserId);
 
             if (($postData['remove'] ?? false) === true) {
                 return $this->flagRepository->unflag($messageId, $adminUserId)
-                    ? $result->setData(['flagged' => false])
-                    : $result->setData(['error' => 'This flag can only be removed under Flagged Answers']);
+                    ? $result->setData(['rating' => null])
+                    : $result->setData(['error' => 'This feedback can only be removed under Answer Feedback']);
+            }
+
+            $rating = (string)($postData['rating'] ?? FlagRepository::RATING_DOWN);
+            if (!in_array($rating, [FlagRepository::RATING_UP, FlagRepository::RATING_DOWN], true)) {
+                return $result->setData(['error' => 'rating must be up or down']);
             }
 
             $note = mb_substr(trim((string)($postData['note'] ?? '')), 0, self::MAX_NOTE_LENGTH);
-            $flagId = $this->flagRepository->flag($messageId, $adminUserId, $note);
+            $flagId = $this->flagRepository->flag($messageId, $adminUserId, $note, $rating);
 
             if ($flagId === null) {
-                return $result->setData(['error' => 'Only an assistant answer can be flagged']);
+                return $result->setData(['error' => 'Only an assistant answer can be rated']);
             }
 
-            return $result->setData(['flagged' => true, 'flag_id' => $flagId]);
+            // What is stored, not what was asked: feedback someone already resolved keeps its rating,
+            // and the panel should show that rather than a thumb that did not stick.
+            $stored = $this->flagRepository->getById($flagId);
+
+            return $result->setData([
+                'rating' => (string)($stored['rating'] ?? $rating),
+                'note_saved' => $note !== '' && ($stored['note'] ?? null) === $note,
+                'flag_id' => $flagId,
+            ]);
         } catch (\Throwable $e) {
             $this->errorLogger->addLog('Flag Controller', $e->getMessage());
 

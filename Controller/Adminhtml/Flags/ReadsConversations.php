@@ -10,7 +10,7 @@ use MagoAssistant\Mago\Controller\Adminhtml\Conversations\View as ConversationsV
 
 /**
  * A flag is a copy of another admin's conversation, payloads included. Reading one therefore asks for
- * the same grant the Conversations screen does, on top of the Flagged Answers resource itself.
+ * the same grant the Conversations screen does, on top of the Answer Feedback resource itself.
  */
 trait ReadsConversations
 {

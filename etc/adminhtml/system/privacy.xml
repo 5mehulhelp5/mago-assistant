@@ -6,7 +6,7 @@
         <field id="history_retention_days" translate="label comment" type="text" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
             <label>Conversation History Retention (Days)</label>
             <validate>validate-digits</validate>
-            <comment><![CDATA[Conversations, their messages, their PII token vault and their flagged answers older than this many days are deleted by a daily cron. 0 keeps them forever. Deleting a conversation also removes its messages and vault entries.]]></comment>
+            <comment><![CDATA[Conversations, their messages, their PII token vault and their answer feedback older than this many days are deleted by a daily cron. 0 keeps them forever. Deleting a conversation also removes its messages and vault entries.]]></comment>
         </field>
     </group>
 </include>

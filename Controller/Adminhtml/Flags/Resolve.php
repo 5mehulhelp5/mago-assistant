@@ -32,7 +32,7 @@ class Resolve extends Action implements HttpPostActionInterface
         $redirect = $this->resultRedirectFactory->create()->setPath('mago/flags/view', ['id' => $flagId]);
 
         if ($flagId <= 0 || $this->flagRepository->getById($flagId) === null) {
-            $this->messageManager->addErrorMessage((string)__('This flagged answer no longer exists.'));
+            $this->messageManager->addErrorMessage((string)__('This feedback no longer exists.'));
 
             return $redirect->setPath('mago/flags/index');
         }
@@ -40,15 +40,15 @@ class Resolve extends Action implements HttpPostActionInterface
         try {
             $this->flagRepository->setStatus($flagId, $status);
         } catch (\InvalidArgumentException) {
-            $this->messageManager->addErrorMessage((string)__('The flag status was not changed.'));
+            $this->messageManager->addErrorMessage((string)__('The feedback status was not changed.'));
 
             return $redirect;
         }
 
         $this->messageManager->addSuccessMessage(
             $status === FlagRepository::STATUS_RESOLVED
-                ? (string)__('Flag marked as resolved.')
-                : (string)__('Flag reopened.')
+                ? (string)__('Feedback marked as resolved.')
+                : (string)__('Feedback reopened.')
         );
 
         return $redirect;

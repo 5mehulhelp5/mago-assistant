@@ -62,7 +62,7 @@ class Container extends WidgetContainer
                 'label' => __('Delete'),
                 'onclick' => sprintf(
                     'deleteConfirm(%s, %s, %s)',
-                    $this->jsLiteral((string)__('Delete this flag? The conversation it came from is untouched.')),
+                    $this->jsLiteral((string)__('Delete this feedback? The conversation it came from is untouched.')),
                     $this->jsLiteral($this->getUrl('mago/flags/delete')),
                     $this->jsLiteral(['data' => ['id' => $flagId]])
                 ),

@@ -124,6 +124,7 @@
             "message_id": true,
             "model": true,
             "note": true,
+            "rating": true,
             "skills": true,
             "snapshot": true,
             "status": true,
@@ -139,6 +140,7 @@
             "MAGO_FLAG_ADMIN_USER_ID": true,
             "MAGO_FLAG_CREATED_AT": true,
             "MAGO_FLAG_FULLTEXT": true,
+            "MAGO_FLAG_RATING": true,
             "MAGO_FLAG_STATUS": true
         }
     }

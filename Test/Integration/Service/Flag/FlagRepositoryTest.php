@@ -209,14 +209,102 @@ final class FlagRepositoryTest extends TestCase
     }
 
     #[Test]
-    public function itReportsWhichOfASetOfMessagesAreFlagged(): void
+    public function itReportsHowEachOfASetOfMessagesWasRated(): void
     {
-        $flagged = $this->addMessage('assistant', 'This one is flagged.');
-        $plain = $this->addMessage('assistant', 'This one is not.');
-        $this->flags->flag($flagged, self::ADMIN_USER_ID);
+        $down = $this->addMessage('assistant', 'This one is rated down.');
+        $up = $this->addMessage('assistant', 'This one is rated up.');
+        $plain = $this->addMessage('assistant', 'This one is not rated.');
+        $this->flags->flag($down, self::ADMIN_USER_ID);
+        $this->flags->flag($up, self::ADMIN_USER_ID, '', FlagRepository::RATING_UP);
 
-        self::assertSame([$flagged], $this->flags->flaggedAmong([$flagged, $plain]));
-        self::assertSame([], $this->flags->flaggedAmong([]));
+        $ratings = $this->flags->ratingsAmong([$down, $up, $plain]);
+        ksort($ratings);
+
+        self::assertSame([$down => FlagRepository::RATING_DOWN, $up => FlagRepository::RATING_UP], $ratings);
+        self::assertSame([], $this->flags->ratingsAmong([]));
+    }
+
+    /**
+     * Flags made before thumbs existed were all complaints, and a caller that does not name a
+     * rating still means one.
+     */
+    #[Test]
+    public function itRatesAnAnswerDownUnlessToldOtherwise(): void
+    {
+        $flag = $this->flags->flag($this->addMessage('assistant', 'Rated.'), self::ADMIN_USER_ID);
+
+        self::assertSame(FlagRepository::RATING_DOWN, $this->flags->getById((int)$flag)['rating']);
+    }
+
+    #[Test]
+    public function itRefusesARatingItDoesNotKnow(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        $this->flags->flag($this->addMessage('assistant', 'Rated.'), self::ADMIN_USER_ID, '', 'sideways');
+    }
+
+    /**
+     * The note comes after the thumb, in a second call, so that call has to add it to the feedback
+     * the thumb made rather than start another one or take a new snapshot.
+     */
+    #[Test]
+    public function itAddsTheNoteAndANewRatingToTheFeedbackAlreadyGiven(): void
+    {
+        $answerId = $this->addMessage('assistant', 'Fourteen orders were on hold.');
+
+        $first = $this->flags->flag($answerId, self::ADMIN_USER_ID, '', FlagRepository::RATING_UP);
+        $second = $this->flags->flag($answerId, self::ADMIN_USER_ID, 'It was nine', FlagRepository::RATING_DOWN);
+        $third = $this->flags->flag($answerId, self::ADMIN_USER_ID, '', FlagRepository::RATING_DOWN);
+        $row = (array)$this->flags->getById((int)$first);
+
+        self::assertSame($first, $second);
+        self::assertSame($first, $third);
+        self::assertSame(FlagRepository::RATING_DOWN, $row['rating']);
+        self::assertSame('It was nine', $row['note'], 'An empty note leaves the stored one alone');
+    }
+
+    /**
+     * A note says what was wrong or what helped, so it does not carry over to the other thumb.
+     */
+    #[Test]
+    public function itDropsTheNoteWhenTheRatingChanges(): void
+    {
+        $answerId = $this->addMessage('assistant', 'Fourteen orders were on hold.');
+
+        $flag = $this->flags->flag($answerId, self::ADMIN_USER_ID, 'It was nine', FlagRepository::RATING_DOWN);
+        $this->flags->flag($answerId, self::ADMIN_USER_ID, '', FlagRepository::RATING_UP);
+        $row = (array)$this->flags->getById((int)$flag);
+
+        self::assertSame(FlagRepository::RATING_UP, $row['rating']);
+        self::assertNull($row['note']);
+    }
+
+    #[Test]
+    public function itLeavesFeedbackAloneWhenSomeoneElseRatesIt(): void
+    {
+        $answerId = $this->addMessage('assistant', 'Fourteen orders were on hold.');
+        $flag = $this->flags->flag($answerId, self::ADMIN_USER_ID, 'Mine', FlagRepository::RATING_DOWN);
+
+        $this->flags->flag($answerId, self::OTHER_ADMIN_USER_ID, 'Theirs', FlagRepository::RATING_UP);
+        $row = (array)$this->flags->getById((int)$flag);
+
+        self::assertSame(FlagRepository::RATING_DOWN, $row['rating']);
+        self::assertSame('Mine', $row['note']);
+    }
+
+    #[Test]
+    public function itKeepsTheRatingOfResolvedFeedback(): void
+    {
+        $answerId = $this->addMessage('assistant', 'Fourteen orders were on hold.');
+        $flag = $this->flags->flag($answerId, self::ADMIN_USER_ID, '', FlagRepository::RATING_DOWN);
+        $this->flags->setStatus((int)$flag, FlagRepository::STATUS_RESOLVED);
+
+        $this->flags->flag($answerId, self::ADMIN_USER_ID, 'Changed my mind', FlagRepository::RATING_UP);
+        $row = (array)$this->flags->getById((int)$flag);
+
+        self::assertSame(FlagRepository::RATING_DOWN, $row['rating']);
+        self::assertNull($row['note']);
     }
 
     #[Test]

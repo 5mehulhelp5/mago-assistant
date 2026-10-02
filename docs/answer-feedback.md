@@ -1,8 +1,13 @@
-# Flagged answers
+# Answer feedback
 
-An administrator who gets a wrong, odd or unhelpful answer can flag it from the chat panel. The flag
-keeps the turn, and *Mago Assistant → Flagged Answers* is where those turns are read back and
-exported as debug material for an issue.
+Under every answer in the chat panel sit a thumbs up and a thumbs down. An administrator who gets a
+wrong, odd or unhelpful answer gives it a thumbs down; one that got exactly what they needed gives
+it a thumbs up. Either way the turn is kept, and *Mago Assistant → Answer Feedback* is where those
+turns are read back and exported as debug material for an issue.
+
+Internally a piece of feedback is still called a flag (`mago_flag`, `FlagRepository`, the
+`mago/flags/*` routes): a thumbs down is exactly what a flag used to be, and a thumbs up is the same
+row with `rating = up`. Flags made before the rating existed read as a thumbs down.
 
 ## What a flag is
 
@@ -43,7 +48,7 @@ provider call and gets no usage at all, rather than the previous turn's.
 ### Privacy
 
 Message text is stored tokenised (see privacy mode) and the snapshot keeps it that way, so the JSON
-bundle carries tokens, not the values behind them. The Flagged Answers screen rehydrates them through
+bundle carries tokens, not the values behind them. The Answer Feedback screen rehydrates them through
 the conversation's vault while the conversation exists; after that they read as `[earlier record]`.
 
 ### Retention
@@ -61,20 +66,30 @@ so the call that produced the answer is kept longest, and the flag says it was t
 
 ## In the panel
 
-The flag button sits under an assistant answer and appears on hover; once the answer is flagged it
-stays visible and takes the accent colour. Clicking it again removes the flag, but only for the
-admin who flagged it and only while it is still open. After that, removing it is a delete under
-Flagged Answers.
+The thumbs sit under an assistant answer and appear on hover or keyboard focus; once the answer is
+rated they stay visible and the chosen thumb takes the accent colour. Each is a toggle button with
+`aria-pressed`, inside a group labelled *Rate this answer*.
+
+- A click saves the rating straight away. A card then asks for an optional note: what was wrong
+  (with the usual reasons as chips) for a thumbs down, what was helpful for a thumbs up. Sending it
+  adds the note to the same row; leaving it empty or pressing Escape keeps the rating without one.
+- Clicking the other thumb changes the rating of the same row and drops the note, which was about
+  the other thumb; the snapshot is not taken again.
+- Clicking the chosen thumb again removes the feedback.
+
+Changing or removing feedback is only for the admin who gave it, and only while it is still open.
+After someone resolved it, the panel shows the rating that was kept, and removing it is a delete
+under Answer Feedback.
 
 The message id it needs is already there: the `done` SSE event carries `message_id` for every
-answer, and `Chat\Load` marks the messages of a reloaded conversation that already carry a flag.
+answer, and `Chat\Load` gives the messages of a reloaded conversation the `rating` they already carry.
 `Chat\Flag` checks ownership through `getMessageForUser()`, so a flag cannot become a way to read
 someone else's conversation.
 
 ## In the admin
 
-*Mago Assistant → Flagged Answers* lists them with status, a preview of the answer, the note, who
-flagged it and which model answered. Opening one shows the answer, the messages leading to it, and
+*Mago Assistant → Answer Feedback* lists them with status, rating, a preview of the answer, the
+note, who gave it and which model answered. Filter on *Rating* to see only the thumbs down. Opening one shows the answer, the messages leading to it, and
 the payloads when they were captured — and says so plainly when they were not.
 
 **Download JSON** gives the whole snapshot as a file to attach to an issue. It is sent from memory,
@@ -91,8 +106,8 @@ so no copy is left in `var/`.
 | `MagoAssistant_Mago::flags_export` | Download the JSON bundle |
 | `MagoAssistant_Mago::flags_delete` | Delete flags |
 
-A flag is a copy of another admin's conversation, so every Flagged Answers action also needs
+A flag is a copy of another admin's conversation, so every Answer Feedback action also needs
 `MagoAssistant_Mago::config`, the resource the Conversations screen is behind.
 
-Flagging itself needs `MagoAssistant_Mago::assistant_read` — anyone who can use the panel can flag
+Rating itself needs `MagoAssistant_Mago::assistant_read` — anyone who can use the panel can rate
 what it answers.

@@ -11,13 +11,13 @@ $usage = $block->getUsage();
 $environment = $block->getEnvironment();
 ?>
 <?php if (!$flag): ?>
-    <div class="message message-error"><?= $escaper->escapeHtml(__('This flagged answer no longer exists.')) ?></div>
+    <div class="message message-error"><?= $escaper->escapeHtml(__('This feedback no longer exists.')) ?></div>
 <?php else: ?>
 <div class="mago-flag-view">
     <?php if (!$block->hasReadableSnapshot()): ?>
         <div class="message message-error">
             <?= $escaper->escapeHtml(__(
-                'The stored snapshot of this flag could not be read. The Mago error log has the details.'
+                'The stored snapshot of this feedback could not be read. The Mago error log has the details.'
             )) ?>
         </div>
     <?php endif; ?>
@@ -37,7 +37,15 @@ $environment = $block->getEnvironment();
                     </td>
                 </tr>
                 <tr>
-                    <th><?= $escaper->escapeHtml(__('Flagged at')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Rating')) ?></th>
+                    <td>
+                        <span class="mago-flag-rating is-<?= $escaper->escapeHtmlAttr((string)$flag['rating']) ?>">
+                            <?= $escaper->escapeHtml($block->getRatingLabel()) ?>
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <th><?= $escaper->escapeHtml(__('Given at')) ?></th>
                     <td><?= $escaper->escapeHtml($block->formatFlagDate((string)$flag['created_at'])) ?></td>
                 </tr>
                 <?php if (!empty($flag['note'])): ?>
@@ -95,7 +103,7 @@ $environment = $block->getEnvironment();
 
     <div class="admin__page-section">
         <div class="admin__page-section-title">
-            <span class="title"><?= $escaper->escapeHtml(__('The flagged answer')) ?></span>
+            <span class="title"><?= $escaper->escapeHtml(__('The rated answer')) ?></span>
         </div>
     <pre class="mago-flag-content"><?= $escaper->escapeHtml($block->displayText((string)($answer['content'] ?? ''))) ?></pre>
 

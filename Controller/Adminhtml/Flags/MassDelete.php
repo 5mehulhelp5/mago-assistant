@@ -39,13 +39,13 @@ class MassDelete extends Action implements HttpPostActionInterface
         $redirect = $this->resultRedirectFactory->create()->setPath('mago/flags/index');
 
         if ($deleted === 0) {
-            $this->messageManager->addErrorMessage((string)__('No flags were selected.'));
+            $this->messageManager->addErrorMessage((string)__('No feedback was selected.'));
 
             return $redirect;
         }
 
         $this->messageManager->addSuccessMessage(
-            (string)__('%1 flag(s) were deleted. The conversations they came from are untouched.', $deleted)
+            (string)__('%1 feedback item(s) were deleted. The conversations they came from are untouched.', $deleted)
         );
 
         return $redirect;

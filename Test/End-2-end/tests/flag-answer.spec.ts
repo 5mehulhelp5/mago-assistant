@@ -15,26 +15,27 @@ const QUESTION = 'Please run the E2E Flag Answer Check.';
 const ANSWER = 'Fourteen orders are on hold.';
 
 /**
- * Flagging goes through the real backend: the answer has to be stored for there to be a message id
- * to flag, and the flag has to be read back from the database on the Flagged Answers screen. Only
- * the provider is mocked, by WireMock (wiremock/mappings/flag-answer.json).
+ * Rating goes through the real backend: the answer has to be stored for there to be a message id
+ * to rate, and the feedback has to be read back from the database on the Answer Feedback screen.
+ * Only the provider is mocked, by WireMock (wiremock/mappings/flag-answer.json).
  */
-test.describe('Flag an answer', () => {
-  /* The Flagged Answers grid keeps its keyword search per admin, and every spec shares one admin,
+test.describe('Rate an answer', () => {
+  /* The Answer Feedback grid keeps its keyword search per admin, and every spec shares one admin,
      so a search in one test would empty the grid another test borrows a view link from. */
   test.describe.configure({mode: 'serial'});
 
-  test('Keeps the flagged answer and lets an admin resolve, download and delete it', async ({page}) => {
+  test('Keeps a thumbs down with its note and lets an admin resolve, download and delete it', async ({page}) => {
     const note = 'It said fourteen, there were nine ' + Date.now();
 
     await chatPanel.openOnDashboard(page);
     await chatPanel.ask(page, QUESTION);
     await expect(chatPanel.lastAssistantMessage(page)).toContainText(ANSWER, {timeout: PROVIDER_ROUND_TRIP_TIMEOUT});
 
-    const flagId = await chatPanel.flagLastAnswer(page, note);
+    const flagId = await chatPanel.rateLastAnswerWithNote(page, 'down', note);
 
-    await expect(chatPanel.flagLine(page)).toContainText('Flagged.');
-    await expect(chatPanel.flagButton(page)).toHaveAttribute('aria-pressed', 'true');
+    await expect(chatPanel.feedbackLine(page)).toContainText('Thanks for your feedback.');
+    await expect(chatPanel.rateButton(page, 'down')).toHaveAttribute('aria-pressed', 'true');
+    await expect(chatPanel.rateButton(page, 'up')).toHaveAttribute('aria-pressed', 'false');
 
     await flaggedAnswers.openFlag(page, flagId);
 
@@ -42,15 +43,16 @@ test.describe('Flag an answer', () => {
     await expect(flaggedAnswers.content(page)).toContainText(QUESTION);
     await expect(flaggedAnswers.content(page)).toContainText(note);
     await expect(flaggedAnswers.status(page)).toHaveText(/open/i);
+    await expect(flaggedAnswers.rating(page)).toHaveText(/thumbs down/i);
 
     await flaggedAnswers.resolve(page);
 
-    await expect(flaggedAnswers.successMessage(page)).toContainText('Flag marked as resolved.');
+    await expect(flaggedAnswers.successMessage(page)).toContainText('Feedback marked as resolved.');
     await expect(flaggedAnswers.status(page)).toHaveText(/resolved/i);
 
     await flaggedAnswers.reopen(page);
 
-    await expect(flaggedAnswers.successMessage(page)).toContainText('Flag reopened.');
+    await expect(flaggedAnswers.successMessage(page)).toContainText('Feedback reopened.');
     await expect(flaggedAnswers.status(page)).toHaveText(/open/i);
 
     const download = await flaggedAnswers.download(page);
@@ -58,6 +60,7 @@ test.describe('Flag an answer', () => {
 
     expect(download.suggestedFilename()).toBe('mago-flag-' + flagId + '.json');
     expect(bundle.flag.note).toBe(note);
+    expect(bundle.flag.rating).toBe('down');
     expect(bundle.snapshot.answer.content).toBe(ANSWER);
     expect(bundle.snapshot.usage.calls.length, 'the provider call of the turn is part of the flag').toBeGreaterThan(0);
 
@@ -65,11 +68,11 @@ test.describe('Flag an answer', () => {
 
     await flaggedAnswers.delete(page);
 
-    await expect(flaggedAnswers.successMessage(page)).toContainText('The flag was deleted.');
+    await expect(flaggedAnswers.successMessage(page)).toContainText('The feedback was deleted.');
 
     await page.goto(flagUrl, {waitUntil: 'load'});
 
-    await expect(flaggedAnswers.errorMessage(page)).toContainText('This flagged answer no longer exists.');
+    await expect(flaggedAnswers.errorMessage(page)).toContainText('This feedback no longer exists.');
   });
 
   test('Deletes every flag the grid shows with Select All and the mass action', async ({page}) => {
@@ -78,29 +81,43 @@ test.describe('Flag an answer', () => {
     await chatPanel.openOnDashboard(page);
     await chatPanel.ask(page, QUESTION);
     await expect(chatPanel.lastAssistantMessage(page)).toContainText(ANSWER, {timeout: PROVIDER_ROUND_TRIP_TIMEOUT});
-    await chatPanel.flagLastAnswer(page, 'Mass delete ' + keyword);
+    await chatPanel.rateLastAnswerWithNote(page, 'down', 'Mass delete ' + keyword);
     await flaggedAnswers.openGrid(page);
     await flaggedAnswers.search(page, keyword);
     await expect(flaggedAnswers.gridRows(page)).toHaveCount(1);
 
     await flaggedAnswers.deleteAllMatching(page);
 
-    await expect(flaggedAnswers.successMessage(page)).toContainText('1 flag(s) were deleted.');
+    await expect(flaggedAnswers.successMessage(page)).toContainText('1 feedback item(s) were deleted.');
     await flaggedAnswers.search(page, keyword);
     await expect(flaggedAnswers.gridRows(page)).toHaveCount(0);
     await flaggedAnswers.clearSearch(page);
   });
 
-  test('Lets the admin who flagged an answer take the flag back from the panel', async ({page}) => {
+  test('Keeps a thumbs up without a note, and lets the admin switch it and take it back', async ({page}) => {
     await chatPanel.openOnDashboard(page);
     await chatPanel.ask(page, QUESTION);
     await expect(chatPanel.lastAssistantMessage(page)).toContainText(ANSWER, {timeout: PROVIDER_ROUND_TRIP_TIMEOUT});
-    await chatPanel.flagLastAnswer(page, 'Flagged by mistake');
-    await expect(chatPanel.flagLine(page)).toContainText('Flagged.');
 
-    await chatPanel.flagButton(page).click();
+    const flagId = await chatPanel.rateLastAnswer(page, 'up');
 
-    await expect(chatPanel.flagLine(page)).toContainText('Flag removed.');
-    await expect(chatPanel.flagButton(page)).toHaveAttribute('aria-pressed', 'false');
+    await expect(chatPanel.rateButton(page, 'up')).toHaveAttribute('aria-pressed', 'true');
+    await expect(chatPanel.feedbackCard(page)).toContainText('(optional)');
+
+    await chatPanel.feedbackCard(page).locator('input').press('Escape');
+
+    await expect(chatPanel.feedbackCard(page)).toHaveCount(0);
+    await expect(chatPanel.rateButton(page, 'up')).toHaveAttribute('aria-pressed', 'true');
+
+    const switchedId = await chatPanel.rateLastAnswer(page, 'down');
+
+    expect(switchedId, 'switching thumbs changes the feedback, it does not add a second one').toBe(flagId);
+    await expect(chatPanel.rateButton(page, 'down')).toHaveAttribute('aria-pressed', 'true');
+    await expect(chatPanel.rateButton(page, 'up')).toHaveAttribute('aria-pressed', 'false');
+
+    await chatPanel.rateButton(page, 'down').click();
+
+    await expect(chatPanel.feedbackLine(page)).toContainText('Feedback removed.');
+    await expect(chatPanel.rateButton(page, 'down')).toHaveAttribute('aria-pressed', 'false');
   });
 });

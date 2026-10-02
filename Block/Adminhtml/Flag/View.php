@@ -57,6 +57,13 @@ class View extends Template
         return $this->flag ?: null;
     }
 
+    public function getRatingLabel(): string
+    {
+        return ($this->getFlag()['rating'] ?? '') === FlagRepository::RATING_UP
+            ? (string)__('Thumbs up')
+            : (string)__('Thumbs down');
+    }
+
     /**
      * @return array<string, mixed>
      */
