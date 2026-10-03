@@ -21,7 +21,7 @@
         </settings>
         <!-- The rows are other admins' conversations, so the grid data asks for the same grant the
              Conversations screen does. mui/index/render only enforces this one resource. -->
-        <aclResource>MagoAssistant_Mago::config</aclResource>
+        <aclResource>MagoAssistant_Mago::conversations</aclResource>
         <dataProvider class="Magento\Framework\View\Element\UiComponent\DataProvider\DataProvider"
                       name="mago_flags_listing_data_source">
             <settings>

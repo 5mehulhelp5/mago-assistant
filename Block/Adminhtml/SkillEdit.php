@@ -23,6 +23,14 @@ class SkillEdit extends Template
         parent::__construct($context, $data);
     }
 
+    /**
+     * Viewing the permissions and changing them are separate grants (#195).
+     */
+    public function canEdit(): bool
+    {
+        return $this->_authorization->isAllowed('MagoAssistant_Mago::skills_write');
+    }
+
     public function getSkill(): ?ToolInterface
     {
         $skillName = $this->getRequest()->getParam('skill_name');
