@@ -44,7 +44,7 @@ class Export extends Action implements HttpGetActionInterface
         $flag = $flagId ? $this->flagRepository->getById($flagId) : null;
 
         if (!$flag) {
-            $this->messageManager->addErrorMessage((string)__('This flagged answer no longer exists.'));
+            $this->messageManager->addErrorMessage((string)__('This feedback no longer exists.'));
 
             return $this->resultRedirectFactory->create()->setPath('mago/flags/index');
         }
@@ -53,6 +53,7 @@ class Export extends Action implements HttpGetActionInterface
             'flag' => [
                 'id' => (int)$flag['entity_id'],
                 'status' => (string)$flag['status'],
+                'rating' => (string)$flag['rating'],
                 'note' => $flag['note'] ?? null,
                 'flagged_at' => (string)$flag['created_at'],
             ],

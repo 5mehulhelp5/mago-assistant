@@ -54,7 +54,7 @@ final class ReadsConversationsTest extends TestCase
     }
 
     /**
-     * Every Flagged Answers action shows or changes a copy of someone else's conversation, so
+     * Every Answer Feedback action shows or changes a copy of someone else's conversation, so
      * dropping the trait from one of them would open it up to the flags grant alone.
      */
     #[Test]

@@ -32,14 +32,14 @@ class View extends Action implements HttpGetActionInterface
         $flagId = (int)$this->getRequest()->getParam('id');
 
         if (!$flagId || !$this->flagRepository->getById($flagId)) {
-            $this->messageManager->addErrorMessage((string)__('This flagged answer no longer exists.'));
+            $this->messageManager->addErrorMessage((string)__('This feedback no longer exists.'));
 
             return $this->resultRedirectFactory->create()->setPath('mago/flags/index');
         }
 
         $resultPage = $this->pageFactory->create();
         $resultPage->setActiveMenu('MagoAssistant_Mago::flags');
-        $resultPage->getConfig()->getTitle()->prepend((string)__('Flagged Answer #%1', $flagId));
+        $resultPage->getConfig()->getTitle()->prepend((string)__('Answer Feedback #%1', $flagId));
 
         return $resultPage;
     }

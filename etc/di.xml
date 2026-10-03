@@ -385,7 +385,7 @@
     </type>
 
     <!--
-        Flagged Answers grid. The standard DataProvider over a SearchResult collection, so the
+        Answer Feedback grid. The standard DataProvider over a SearchResult collection, so the
         toolbar's filters, sorting and paging are Magento's own rather than something to reimplement.
     -->
     <virtualType name="MagoFlagGridCollection" type="MagoAssistant\Mago\Model\ResourceModel\Flag\Grid">

@@ -59,8 +59,8 @@ class FlagActions extends Column
                     'label' => __('Delete'),
                     'post' => true,
                     'confirm' => [
-                        'title' => __('Delete Flag'),
-                        'message' => __('Delete this flag? The conversation it came from is untouched.'),
+                        'title' => __('Delete Feedback'),
+                        'message' => __('Delete this feedback? The conversation it came from is untouched.'),
                     ],
                 ];
             }

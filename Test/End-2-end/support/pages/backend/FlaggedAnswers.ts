@@ -6,7 +6,7 @@ import {type Download, type Locator, type Page} from '@playwright/test';
 import ChatPanel from 'Pages/backend/ChatPanel';
 
 /**
- * Mago Assistant > Flagged Answers, and the view of one flag. Admin URLs carry a secret key, so the
+ * Mago Assistant > Answer Feedback, and the view of one piece of feedback. Admin URLs carry a secret key, so the
  * view is reached through ChatPanel.keyedUrlFor(), which borrows a key from the grid.
  */
 export default class FlaggedAnswers {
@@ -71,6 +71,10 @@ export default class FlaggedAnswers {
 
   status(page: Page): Locator {
     return page.locator('.mago-flag-status');
+  }
+
+  rating(page: Page): Locator {
+    return page.locator('.mago-flag-rating');
   }
 
   successMessage(page: Page): Locator {

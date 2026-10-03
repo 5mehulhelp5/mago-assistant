@@ -11,7 +11,7 @@ use Magento\Framework\DB\Select;
 use Magento\Framework\View\Element\UiComponent\DataProvider\SearchResult;
 
 /**
- * The collection behind the Flagged Answers grid.
+ * The collection behind the Answer Feedback grid.
  *
  * Deliberately a SearchResult rather than a hand-rolled provider: filtering, sorting, paging and
  * the keyword search are Magento's to do, and a provider that fetches every row and ignores the
@@ -31,6 +31,7 @@ class Grid extends SearchResult implements SearchResultInterface
         'conversation_id',
         'admin_user_id',
         'status',
+        'rating',
         'note',
         'answer_preview',
         'model',

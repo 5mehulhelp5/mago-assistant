@@ -385,34 +385,50 @@ export default class ChatPanel {
     return this.assistantMessages(page).last();
   }
 
-  flagButton(page: Page): Locator {
-    return this.lastAssistantMessage(page).locator('.mago-msg-flag');
+  rateButton(page: Page, rating: 'up' | 'down'): Locator {
+    return this.lastAssistantMessage(page).locator('.mago-msg-rate[data-rating="' + rating + '"]');
   }
 
-  flagLine(page: Page): Locator {
-    return this.lastAssistantMessage(page).locator('.mago-flag-line');
+  feedbackLine(page: Page): Locator {
+    return this.lastAssistantMessage(page).locator('.mago-feedback-line');
+  }
+
+  feedbackCard(page: Page): Locator {
+    return this.lastAssistantMessage(page).locator('.mago-feedback-ask');
   }
 
   /**
-   * Flags the last answer with a note, and returns the id of the flag the server created. The flag
-   * button only shows on hover until the answer is flagged, so the message is hovered first.
+   * Rates the last answer and returns the id of the feedback the server stored. The thumbs only show
+   * on hover until the answer is rated, so the message is hovered first.
    */
-  async flagLastAnswer(page: Page, note: string): Promise<number> {
+  async rateLastAnswer(page: Page, rating: 'up' | 'down'): Promise<number> {
     await this.lastAssistantMessage(page).hover();
-    await this.flagButton(page).click({timeout: INTERACTION_TIMEOUT_MS});
 
-    const ask = this.lastAssistantMessage(page).locator('.mago-flag-ask');
-    await ask.locator('input').fill(note);
-
-    const flagResponse = page.waitForResponse((response) => response.url().includes('mago/chat/flag'));
-    await ask.getByRole('button', {name: 'Flag', exact: true}).click({timeout: INTERACTION_TIMEOUT_MS});
-    const body = await (await flagResponse).json();
+    const response = page.waitForResponse((r) => r.url().includes('mago/chat/flag'));
+    await this.rateButton(page, rating).click({timeout: INTERACTION_TIMEOUT_MS});
+    const body = await (await response).json();
 
     if (!body.flag_id) {
-      throw new Error('Flagging the answer failed: ' + JSON.stringify(body));
+      throw new Error('Rating the answer failed: ' + JSON.stringify(body));
     }
 
     return body.flag_id;
+  }
+
+  /**
+   * Rates the last answer and adds a note in the card that follows the thumb.
+   */
+  async rateLastAnswerWithNote(page: Page, rating: 'up' | 'down', note: string): Promise<number> {
+    const flagId = await this.rateLastAnswer(page, rating);
+
+    const card = this.feedbackCard(page);
+    await card.locator('input').fill(note);
+
+    const response = page.waitForResponse((r) => r.url().includes('mago/chat/flag'));
+    await card.getByRole('button', {name: 'Send', exact: true}).click({timeout: INTERACTION_TIMEOUT_MS});
+    await response;
+
+    return flagId;
   }
 
   toolTags(page: Page): Locator {

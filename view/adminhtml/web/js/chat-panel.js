@@ -804,7 +804,7 @@ define([
                     // that grows them is not the same conversation the admin was just looking at.
                     var msgEl = addMsg(m.role, renderMd(m.content));
                     if (m.role === 'assistant') {
-                        attachFlag(msgEl, m.entity_id, !!m.flagged);
+                        attachFeedback(msgEl, m.entity_id, m.rating || null);
                     }
                     if (m.role === 'assistant' && pendingTools.length) {
                         replayTools(msgEl, pendingTools);
@@ -976,64 +976,117 @@ define([
         return div;
     }
 
-    // A flag marks an answer as worth looking at later: it copies the turn, with
-    // its tool calls and whatever the provider was sent and sent back, into a row
-    // the Flagged Answers screen reads. Nothing about the conversation changes,
-    // and the copy is what makes the flag survive the payload purge.
+    // Thumbs under an answer let the admin say whether it helped. Either thumb
+    // copies the turn, with its tool calls and whatever the provider was sent and
+    // sent back, into a row the Answer Feedback screen reads. Nothing about the
+    // conversation changes, and the copy is what makes the feedback survive the
+    // payload purge.
     //
-    // Clicking does not flag straight away. A flag without a reason is a row
-    // nobody can act on later, so the button opens the S10 prompt and asks what
-    // was wrong; the answer becomes the note on the flag.
-    function attachFlag(msgEl, messageId, flagged) {
-        if (!msgEl || !messageId || msgEl.querySelector('.mago-msg-flag')) {
+    // A click saves the rating straight away, so one click is all it takes. The
+    // S10 card that follows asks for an optional note; leaving it empty, or
+    // pressing Escape, keeps the rating as it is.
+    var RATINGS = ['up', 'down'];
+
+    function attachFeedback(msgEl, messageId, rating) {
+        if (!msgEl || !messageId || msgEl.querySelector('.mago-msg-feedback')) {
             return;
         }
 
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'mago-msg-flag' + (flagged ? ' is-flagged' : '');
-        btn.innerHTML = UI.icon('flag', 14).outerHTML;
-        setFlagState(btn, flagged);
+        var group = document.createElement('div');
+        group.className = 'mago-msg-feedback';
+        group.setAttribute('role', 'group');
+        group.setAttribute('aria-label', t('Rate this answer'));
 
-        btn.addEventListener('click', function () {
-            var open = msgEl.querySelector('.mago-flag-ask');
-            if (open) {
-                open.remove();
-                return;
-            }
-            if (btn.classList.contains('is-flagged')) {
-                sendFlag(msgEl, btn, messageId, {remove: true});
-                return;
-            }
-            askWhy(msgEl, btn, messageId);
+        RATINGS.forEach(function (value) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'mago-msg-rate';
+            btn.setAttribute('data-rating', value);
+            btn.setAttribute('aria-label', value === 'up' ? t('Good answer') : t('Bad answer'));
+            btn.title = btn.getAttribute('aria-label');
+            btn.innerHTML = UI.icon(value === 'up' ? 'thumbsUp' : 'thumbsDown', 14).outerHTML;
+            btn.addEventListener('click', function () {
+                var open = msgEl.querySelector('.mago-feedback-ask');
+                if (open) {
+                    open.remove();
+                }
+                if (btn.getAttribute('aria-pressed') === 'true') {
+                    sendFeedback(msgEl, group, messageId, {remove: true});
+                    return;
+                }
+                sendFeedback(msgEl, group, messageId, {rating: value}, function () {
+                    askNote(msgEl, group, messageId, value);
+                });
+            });
+            group.appendChild(btn);
         });
 
-        msgEl.appendChild(btn);
+        // Kept empty and in place from the start, so a screen reader announces what lands in it.
+        var live = document.createElement('span');
+        live.className = 'mago-feedback-live';
+        live.setAttribute('role', 'status');
+        group.appendChild(live);
+
+        setRating(group, rating);
+        msgEl.appendChild(group);
     }
 
-    function setFlagState(btn, flagged) {
-        btn.classList.toggle('is-flagged', !!flagged);
-        btn.setAttribute('aria-pressed', flagged ? 'true' : 'false');
-        btn.title = flagged ? t('Remove flag') : t('Flag this answer');
+    function setRating(group, rating) {
+        group.classList.toggle('is-rated', !!rating);
+        Array.prototype.forEach.call(group.querySelectorAll('.mago-msg-rate'), function (btn) {
+            btn.setAttribute('aria-pressed', btn.getAttribute('data-rating') === rating ? 'true' : 'false');
+        });
     }
 
-    // S10: one value is missing before anything is written, which is exactly what
-    // this card is for. The chips are the reasons that come up most.
-    function askWhy(msgEl, btn, messageId) {
+    function setFeedbackBusy(group, busy) {
+        Array.prototype.forEach.call(group.querySelectorAll('.mago-msg-rate'), function (btn) {
+            btn.disabled = busy;
+        });
+    }
+
+    // S10: the note is optional, so the card says so and an empty submit only
+    // closes it. The chips are the reasons a thumbs down comes up with most.
+    function askNote(msgEl, group, messageId, rating) {
+        var isDown = rating === 'down';
+        var question = isDown
+            ? t('What was wrong with this answer? (optional)')
+            : t('What was helpful about this answer? (optional)');
         var card = UI.paramPrompt({
-            text: t('What is wrong with this answer?'),
-            placeholder: t('It said the order was shipped, but it was not'),
-            submitLabel: t('Flag'),
-            chips: [
+            text: question,
+            placeholder: isDown
+                ? t('It said the order was shipped, but it was not')
+                : t('It found the right orders straight away'),
+            submitLabel: t('Send'),
+            chips: isDown ? [
                 {label: t('Wrong information'), value: t('Wrong information')},
                 {label: t('Did not do what I asked'), value: t('Did not do what I asked')},
                 {label: t('Missing something'), value: t('Missing something')}
-            ],
+            ] : null,
             onSubmit: function (note) {
-                sendFlag(msgEl, btn, messageId, {note: note});
+                if (!note.trim()) {
+                    card.remove();
+                    return;
+                }
+                sendFeedback(msgEl, group, messageId, {rating: rating, note: note});
             }
         });
-        card.classList.add('mago-flag-ask');
+        card.classList.add('mago-feedback-ask');
+        var input = card.querySelector('input');
+        if (input) {
+            input.setAttribute('aria-label', question);
+            input.maxLength = 2000;
+        }
+        card.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                // Closes the card, not the panel: the panel only acts on an Escape nobody handled.
+                e.preventDefault();
+                card.remove();
+                var pressed = group.querySelector('.mago-msg-rate[aria-pressed="true"]');
+                if (pressed) {
+                    pressed.focus();
+                }
+            }
+        });
         msgEl.appendChild(card);
         msgs.scrollTop = msgs.scrollHeight;
         if (card.magoFocus) {
@@ -1041,12 +1094,13 @@ define([
         }
     }
 
-    // The result replaces the card with one quiet line, so the answer is not left
-    // looking as though nothing happened.
-    function sendFlag(msgEl, btn, messageId, options) {
-        var card = msgEl.querySelector('.mago-flag-ask');
+    // A note replaces the card with one quiet line, so the answer is not left
+    // looking as though nothing happened. A plain rating needs no line: the
+    // pressed thumb already says it.
+    function sendFeedback(msgEl, group, messageId, options, onRated) {
+        var card = msgEl.querySelector('.mago-feedback-ask');
         var removing = !!options.remove;
-        btn.disabled = true;
+        setFeedbackBusy(group, true);
 
         fetch(config.flagUrl, {
             method: 'POST',
@@ -1054,49 +1108,64 @@ define([
             body: JSON.stringify({
                 message_id: messageId,
                 remove: removing,
+                rating: options.rating || '',
                 note: options.note || '',
                 form_key: formKey
             })
         })
             .then(function (r) { return r.json(); })
             .then(function (d) {
-                btn.disabled = false;
+                setFeedbackBusy(group, false);
                 if (card) {
                     card.remove();
                 }
                 if (d.error) {
-                    showFlagLine(
+                    showFeedbackLine(
                         msgEl,
                         removing
-                            ? t('This flag can only be removed under Flagged Answers.')
-                            : t('Could not flag this answer.'),
+                            ? t('This feedback can only be removed under Answer Feedback.')
+                            : t('Could not save your feedback.'),
                         'failed'
                     );
                     return;
                 }
-                setFlagState(btn, d.flagged);
-                showFlagLine(
-                    msgEl,
-                    d.flagged ? t('Flagged. Review it under Flagged Answers.') : t('Flag removed.'),
-                    'done'
-                );
+                setRating(group, d.rating || null);
+                var line = msgEl.querySelector('.mago-feedback-line');
+                if (line) {
+                    line.remove();
+                }
+                if (removing) {
+                    showFeedbackLine(msgEl, t('Feedback removed.'), 'done');
+                } else if (options.note) {
+                    showFeedbackLine(
+                        msgEl,
+                        d.note_saved ? t('Thanks for your feedback.') : t('This feedback was already resolved, so the note was not added.'),
+                        d.note_saved ? 'done' : 'failed'
+                    );
+                } else if (onRated && d.rating === options.rating) {
+                    onRated();
+                }
             })
             .catch(function () {
-                btn.disabled = false;
+                setFeedbackBusy(group, false);
                 if (card) {
                     card.remove();
                 }
-                showFlagLine(msgEl, t('Could not flag this answer.'), 'failed');
+                showFeedbackLine(msgEl, t('Could not save your feedback.'), 'failed');
             });
     }
 
-    function showFlagLine(msgEl, text, state) {
-        var existing = msgEl.querySelector('.mago-flag-line');
+    function showFeedbackLine(msgEl, text, state) {
+        var existing = msgEl.querySelector('.mago-feedback-line');
         if (existing) {
             existing.remove();
         }
         var line = UI.readLine({text: text, state: state === 'failed' ? 'active' : 'done'});
-        line.classList.add('mago-flag-line');
+        line.classList.add('mago-feedback-line');
+        var live = msgEl.querySelector('.mago-feedback-live');
+        if (live) {
+            live.textContent = text;
+        }
         if (state === 'failed') {
             line.classList.add('is-failed');
         }
@@ -1514,7 +1583,7 @@ define([
                         if(d.conversation_id) conversationId=d.conversation_id;
                         saveState(); releaseInput();
                         if (d.message_id && msg && !d.pending_confirmation) {
-                            attachFlag(msg, d.message_id, false);
+                            attachFeedback(msg, d.message_id, null);
                         }
                         if (d.pending_confirmation && msg && !writeToolDetected) {
                             showConfirmButtons(msg, {messageId: d.message_id, conversationId: conversationId}, []);
@@ -1828,7 +1897,7 @@ define([
                             applyResult = null;
                         }
                         if (d.message_id && msg && !d.pending_confirmation) {
-                            attachFlag(msg, d.message_id, false);
+                            attachFeedback(msg, d.message_id, null);
                         }
                         if (d.pending_confirmation && msg) {
                             showConfirmButtons(msg, {messageId: d.message_id, conversationId: conversationId}, []);

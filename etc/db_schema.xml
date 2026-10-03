@@ -37,12 +37,14 @@
         </index>
     </table>
 
-    <table name="mago_flag" resource="default" engine="innodb" comment="Admin Assistant Flagged Answers">
+    <table name="mago_flag" resource="default" engine="innodb" comment="Admin Assistant Answer Feedback">
         <column xsi:type="int" name="entity_id" unsigned="true" nullable="false" identity="true" comment="Entity ID"/>
         <column xsi:type="int" name="message_id" unsigned="true" nullable="true" comment="Flagged Message ID"/>
         <column xsi:type="int" name="conversation_id" unsigned="true" nullable="true" comment="Conversation ID"/>
         <column xsi:type="int" name="admin_user_id" unsigned="true" nullable="false" comment="Admin User Who Flagged"/>
         <column xsi:type="varchar" name="status" nullable="false" length="20" default="open" comment="Status: open, resolved"/>
+        <!-- Flags made before thumbs feedback existed were all complaints, so they read as a thumbs down -->
+        <column xsi:type="varchar" name="rating" nullable="false" length="10" default="down" comment="Rating: up, down"/>
         <column xsi:type="text" name="note" nullable="true" comment="What the admin said was wrong"/>
         <column xsi:type="mediumtext" name="snapshot" nullable="true" comment="The flagged turn, copied at flag time, JSON"/>
         <column xsi:type="varchar" name="answer_preview" nullable="true" length="255" comment="First part of the flagged answer, for the grid"/>
@@ -61,6 +63,9 @@
         </constraint>
         <index referenceId="MAGO_FLAG_STATUS" indexType="btree">
             <column name="status"/>
+        </index>
+        <index referenceId="MAGO_FLAG_RATING" indexType="btree">
+            <column name="rating"/>
         </index>
         <index referenceId="MAGO_FLAG_CREATED_AT" indexType="btree">
             <column name="created_at"/>

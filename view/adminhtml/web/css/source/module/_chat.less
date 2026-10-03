@@ -707,26 +707,59 @@ html:has(body.mago-active) {
     }
 }
 
-// Flag an answer: a quiet control that only shows itself when the answer is
-// hovered, and stays visible once the answer is actually flagged.
-.mago-msg-flag {
+// Thumbs under an answer: quiet controls that only show themselves when the
+// answer is hovered or one of them has focus, and stay visible once the answer
+// is rated.
+.mago-msg-feedback {
+    display: flex;
+    gap: 2px;
+    margin-top: 6px;
+    position: relative;
+    opacity: 0;
+    transition: opacity .12s ease;
+
+    &.is-rated,
+    &:focus-within {
+        opacity: 1;
+    }
+}
+
+.mago-message.is-assistant:hover .mago-msg-feedback {
+    opacity: 1;
+}
+
+// Screen readers only: the visible line under the answer says the same thing
+.mago-feedback-live {
+    border: 0;
+    clip: rect(0, 0, 0, 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+}
+
+.mago-msg-rate {
     background: none;
     border: 0;
     border-radius: 6px;
-    color: var(--mago-ink-muted, #9A918B);
+    color: var(--mago-ink-muted, #736B65);
     cursor: pointer;
-    display: block;
     line-height: 0;
-    margin-top: 6px;
-    opacity: 0;
     padding: 4px;
-    transition: opacity .12s ease, color .12s ease;
+    transition: color .12s ease, background-color .12s ease;
 
     &:hover,
     &:focus-visible {
         background: var(--mago-surface, #F7F5F3);
         color: var(--mago-ink, #373330);
-        opacity: 1;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--mago-accent, #FF7A33);
+        outline-offset: 1px;
     }
 
     &[disabled] {
@@ -734,23 +767,18 @@ html:has(body.mago-active) {
         opacity: .4;
     }
 
-    &.is-flagged {
+    &[aria-pressed="true"] {
         color: var(--mago-accent, #FF7A33);
-        opacity: 1;
     }
 }
 
-.mago-message.is-assistant:hover .mago-msg-flag {
-    opacity: 1;
-}
-
-// The "why" card and the line that replaces it both belong to the answer above
+// The note card and the line that replaces it both belong to the answer above
 // them, so they sit tight against it rather than floating in the thread.
-.mago-flag-ask {
+.mago-feedback-ask {
     margin-top: 8px;
 }
 
-.mago-flag-line {
+.mago-feedback-line {
     margin-top: 6px;
 
     &.is-failed {
@@ -1137,9 +1165,9 @@ body.mago-active.mago-fullsize .page-wrapper {
     }
 }
 
-// Flagged Answers detail page — plain admin page, not the panel, so it only
+// Answer Feedback detail page — plain admin page, not the panel, so it only
 // needs its blocks to be readable rather than styled like a chat bubble.
-// Flagged Answers detail page. Magento's own page-section and table-secondary
+// Answer Feedback detail page. Magento's own page-section and table-secondary
 // carry the layout; only the payload blocks and the status pill are ours.
 .mago-flag-view {
     .mago-flag-meta {
@@ -1151,6 +1179,18 @@ body.mago-active.mago-fullsize .page-wrapper {
             text-align: left;
             white-space: nowrap;
             width: 180px;
+        }
+    }
+
+    .mago-flag-rating {
+        font-weight: 600;
+
+        &.is-up {
+            color: #185b00;
+        }
+
+        &.is-down {
+            color: #b8402a;
         }
     }
 

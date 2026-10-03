@@ -29,7 +29,7 @@ class Index extends Action implements HttpGetActionInterface
     {
         $resultPage = $this->pageFactory->create();
         $resultPage->setActiveMenu('MagoAssistant_Mago::flags');
-        $resultPage->getConfig()->getTitle()->prepend((string)__('Flagged Answers'));
+        $resultPage->getConfig()->getTitle()->prepend((string)__('Answer Feedback'));
 
         return $resultPage;
     }

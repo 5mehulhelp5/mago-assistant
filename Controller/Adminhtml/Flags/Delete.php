@@ -32,12 +32,12 @@ class Delete extends Action implements HttpPostActionInterface
         $redirect = $this->resultRedirectFactory->create()->setPath('mago/flags/index');
 
         if ($this->flagRepository->delete([$flagId]) === 0) {
-            $this->messageManager->addErrorMessage((string)__('This flagged answer no longer exists.'));
+            $this->messageManager->addErrorMessage((string)__('This feedback no longer exists.'));
 
             return $redirect;
         }
 
-        $this->messageManager->addSuccessMessage((string)__('The flag was deleted. The conversation is untouched.'));
+        $this->messageManager->addSuccessMessage((string)__('The feedback was deleted. The conversation is untouched.'));
 
         return $redirect;
     }
