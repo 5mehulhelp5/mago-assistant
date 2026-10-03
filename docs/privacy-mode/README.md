@@ -106,7 +106,7 @@ raw HTML in a reply shows as text instead of executing in the admin session.
 
 ```bash
 # from the Magento root
-vendor/bin/phpunit -c vendor/mago-assistant/mago/phpunit.xml.dist
+vendor/bin/phpunit -c vendor/mago-assistant/magento2-mago/phpunit.xml.dist
 ```
 
 ## Residual risks (state honestly to merchants)

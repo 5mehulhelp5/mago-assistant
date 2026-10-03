@@ -48,7 +48,7 @@ jobs:
         run: |
           sed -i '/version/d' ./composer.json
           docker cp $(pwd) mage-os-community-edition:/data/extensions/
-          docker exec mage-os-community-edition ./install-composer-package mago-assistant/mago:@dev
+          docker exec mage-os-community-edition ./install-composer-package mago-assistant/magento2-mago:@dev
 
       - name: Activate the extension
         run: |

@@ -65,7 +65,7 @@ jobs:
         working-directory: ${{ steps.setup-magento.outputs.path }}
         run: |
           composer config repositories.local path "$GITHUB_WORKSPACE"
-          composer require --no-install "mago-assistant/mago:@dev" "mage-os/module-ai-base:dev-main as 1.0.0"
+          composer require --no-install "mago-assistant/magento2-mago:@dev" "mage-os/module-ai-base:dev-main as 1.0.0"
 
       - uses: graycoreio/github-actions-magento2/cache-magento@v8.10.0
         with:
@@ -83,7 +83,7 @@ jobs:
         run: |
           cat > /tmp/testsuite.xml << 'EOF'
                   <testsuite name="MagoAssistant_Mago_Unit_Tests">
-                      <directory>../../../vendor/mago-assistant/mago/Test/Unit</directory>
+                      <directory>../../../vendor/mago-assistant/magento2-mago/Test/Unit</directory>
                   </testsuite>
           EOF
           sed -i '/<testsuites>/r /tmp/testsuite.xml' dev/tests/unit/phpunit.xml.dist

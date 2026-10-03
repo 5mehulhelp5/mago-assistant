@@ -95,7 +95,7 @@ Anthropic and OpenAI are included out of the box. For other providers (Azure, Ge
 Ollama, LM Studio, etc.) install the matching Symfony AI bridge — see `composer.json` suggests.
 
 ```bash
-composer require mago-assistant/mago
+composer require mago-assistant/magento2-mago
 bin/magento module:enable MageOS_AiBase MagoAssistant_Mago
 bin/magento setup:upgrade
 ```
