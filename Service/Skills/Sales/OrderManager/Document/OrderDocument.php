@@ -30,7 +30,8 @@ class OrderDocument extends AbstractDocument
         private readonly OrderCollectionFactory $orderCollectionFactory,
         private readonly ItemCollectionFactory $itemCollectionFactory,
         private readonly PaymentCollectionFactory $paymentCollectionFactory,
-        private readonly SecureAdminUrl $secureAdminUrl
+        private readonly SecureAdminUrl $secureAdminUrl,
+        private readonly VatNumber $vatNumber
     ) {
     }
 
@@ -60,6 +61,8 @@ class OrderDocument extends AbstractDocument
             [
                 'billing_firstname' => 'firstname',
                 'billing_lastname' => 'lastname',
+                'billing_vat_id' => 'vat_id',
+                'billing_country_id' => 'country_id',
             ]
         );
     }
@@ -158,6 +161,10 @@ class OrderDocument extends AbstractDocument
                 'email' => $document['customer_email'] ?? '',
                 'total' => (float)($document['grand_total'] ?? 0),
                 'currency' => $document['order_currency_code'] ?? '',
+                'vat_id' => $this->vatNumber->withCountryPrefix(
+                    (string)($document['billing_vat_id'] ?? ''),
+                    (string)($document['billing_country_id'] ?? '')
+                ),
                 'admin_url' => $adminUrl,
             ];
         }

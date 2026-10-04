@@ -20,6 +20,7 @@ abstract class AbstractDocument implements DocumentTypeInterface
         'state' => [PiiClass::PUBLIC],
         'customer' => [PiiClass::TOKENISE, 'name'],
         'email' => [PiiClass::TOKENISE, 'email'],
+        'vat_id' => [PiiClass::TOKENISE, 'vat'],
         'total' => [PiiClass::PUBLIC],
         'currency' => [PiiClass::PUBLIC],
         'qty' => [PiiClass::PUBLIC],
