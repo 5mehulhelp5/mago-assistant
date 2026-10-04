@@ -506,7 +506,7 @@ Magento_Backend::admin
 | `assistant_read` + `assistant_write` | Read and write tools, under the same Magento resources | Required for write tools |
 | None | Chat only, no tools | N/A |
 
-A tool declaring `Acl::MAGO_PER_USER` is available only to an admin with an explicit row for it under Stores > Admin Assistant > Skills & Permissions, whatever the role holds.
+A tool declaring `Acl::MAGO_PER_USER` runs only for an admin with an explicit row for it under Stores > Admin Assistant > Skills & Permissions, whatever the role holds. Without one it stays in the model's tool list, with its read actions only when it has any (a write-only tool keeps its actions), so the model relays the refusal instead of answering with another tool; it is left out of the slash legend and the command menu. An explicit Disabled row hides it from the model as well. Declare `MAGO_PER_USER` for the whole tool, not for single actions: the legend, the menu and the advertised actions read the tool-level answer.
 
 ### Per-User Skill Permissions
 

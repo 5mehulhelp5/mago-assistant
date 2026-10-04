@@ -33,7 +33,7 @@ abstract class AbstractToolCommand implements CommandInterface
     public function isAvailable(?int $adminUserId, ?string $subcommand = null): bool
     {
         $tool = $this->toolRegistry->getTool($this->getToolName(), $adminUserId);
-        if ($tool === null) {
+        if ($tool === null || !$this->toolRegistry->isGranted($tool, $adminUserId)) {
             return false;
         }
         if ($subcommand === null) {

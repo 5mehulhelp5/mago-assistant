@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace MagoAssistant\Mago\Test\Unit\Service\Command;
 
+use MagoAssistant\Mago\Api\Acl;
 use MagoAssistant\Mago\Service\Command\CacheCommand;
 use MagoAssistant\Mago\Service\Tool\ToolRegistry;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeChatService;
@@ -160,6 +161,30 @@ final class CacheCommandTest extends TestCase
     private function chat(callable $resultFor): FakeChatService
     {
         return new FakeChatService($resultFor);
+    }
+
+    /**
+     * A per-user tool's command is offered only on an explicit row, and only for what the row
+     * grants: holding assistant_write is not having been given the tool (#220)
+     */
+    #[Test]
+    public function aPerUserToolsCommandIsOfferedOnlyOnAnExplicitRow(): void
+    {
+        $chat = $this->chat(static fn (array $call): array => []);
+        $tool = new FakeTool('cache_manager', ['status', 'flush', 'flush_type'], ['status'], Acl::MAGO_PER_USER);
+        $blanket = (new FakePermissionChecker())
+            ->withDecision('cache_manager', 'read', true)
+            ->withDecision('cache_manager', 'write', true);
+        $readRow = (clone $blanket)->withExplicitGrant('cache_manager', 'read');
+        $writeRow = (clone $readRow)->withExplicitGrant('cache_manager', 'write');
+
+        self::assertFalse((new CacheCommand(new ToolRegistry($blanket, [$tool]), $chat))->isAvailable(self::ADMIN_ID));
+
+        $read = new CacheCommand(new ToolRegistry($readRow, [$tool]), $chat);
+        self::assertTrue($read->isAvailable(self::ADMIN_ID, 'status'));
+        self::assertFalse($read->isAvailable(self::ADMIN_ID, 'flush'));
+
+        self::assertTrue((new CacheCommand(new ToolRegistry($writeRow, [$tool]), $chat))->isAvailable(self::ADMIN_ID, 'flush'));
     }
 
     private function command(FakeChatService $chat, string $grant = 'write'): CacheCommand
