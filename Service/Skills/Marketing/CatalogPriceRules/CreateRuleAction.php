@@ -14,6 +14,7 @@ use Magento\Customer\Model\ResourceModel\Group\CollectionFactory as CustomerGrou
 use Magento\Framework\DataObject;
 use Magento\Store\Model\StoreManagerInterface;
 use MagoAssistant\Mago\Api\Skill\ActionInterface;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
 use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
 
@@ -24,7 +25,8 @@ class CreateRuleAction implements ActionInterface
         private readonly RuleFactory $ruleFactory,
         private readonly StoreManagerInterface $storeManager,
         private readonly CustomerGroupCollectionFactory $customerGroupCollectionFactory,
-        private readonly SecureAdminUrl $secureAdminUrl
+        private readonly SecureAdminUrl $secureAdminUrl,
+        private readonly ErrorReporter $errorReporter
     ) {
     }
 
@@ -207,7 +209,8 @@ class CreateRuleAction implements ActionInterface
                 ),
             ];
         } catch (\Exception $e) {
-            return ['error' => 'Failed to create catalog price rule: ' . $e->getMessage()];
+            $error = $this->errorReporter->reportToolFailure('catalog_price_rules create_rule', $e);
+            return ['error' => 'Failed to create catalog price rule: ' . $error];
         }
     }
 

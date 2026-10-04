@@ -8,6 +8,7 @@ namespace MagoAssistant\Mago\Service\Skills\Marketing\CatalogPriceRules;
 
 use Magento\CatalogRule\Api\CatalogRuleRepositoryInterface;
 use MagoAssistant\Mago\Api\Skill\ActionInterface;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
 use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
 
@@ -15,7 +16,8 @@ class DeactivateRuleAction implements ActionInterface
 {
     public function __construct(
         private readonly CatalogRuleRepositoryInterface $catalogRuleRepository,
-        private readonly SecureAdminUrl $secureAdminUrl
+        private readonly SecureAdminUrl $secureAdminUrl,
+        private readonly ErrorReporter $errorReporter
     ) {
     }
 
@@ -95,7 +97,8 @@ class DeactivateRuleAction implements ActionInterface
                 ),
             ];
         } catch (\Exception $e) {
-            return ['error' => 'Failed to deactivate catalog price rule: ' . $e->getMessage()];
+            $error = $this->errorReporter->reportToolFailure('catalog_price_rules deactivate_rule', $e);
+            return ['error' => 'Failed to deactivate catalog price rule: ' . $error];
         }
     }
 }

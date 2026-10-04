@@ -10,8 +10,13 @@ use Magento\CatalogRule\Api\CatalogRuleRepositoryInterface;
 use Magento\CatalogRule\Model\Rule;
 use Magento\CatalogRule\Model\RuleFactory;
 use Magento\Framework\DataObject;
+use Magento\Framework\Serialize\Serializer\Json;
+use MagoAssistant\Mago\Logger\ErrorLogger;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
+use MagoAssistant\Mago\Service\Privacy\PiiHeuristic;
 use MagoAssistant\Mago\Service\Skills\Marketing\CatalogPriceRules\CreateRuleAction;
 use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeLogger;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -53,6 +58,7 @@ class CreateRuleActionTest extends TestCase
             'catalogRuleRepository' => $this->catalogRuleRepository,
             'ruleFactory' => $ruleFactory,
             'secureAdminUrl' => $secureAdminUrl,
+            'errorReporter' => new ErrorReporter(new ErrorLogger(new FakeLogger(), new Json()), new PiiHeuristic()),
         ]);
     }
 

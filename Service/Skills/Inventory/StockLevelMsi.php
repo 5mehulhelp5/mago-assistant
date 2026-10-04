@@ -16,6 +16,7 @@ use Magento\InventoryApi\Api\StockRepositoryInterface;
 use Magento\InventorySalesApi\Api\GetProductSalableQtyInterface;
 use Magento\InventorySalesApi\Api\IsProductSalableInterface;
 use MagoAssistant\Mago\Api\Tool\AvailabilityAwareToolInterface;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
 
 /**
@@ -29,7 +30,8 @@ class StockLevelMsi implements AvailabilityAwareToolInterface
         private readonly ProductRepositoryInterface $productRepository,
         private readonly SearchCriteriaBuilder $searchCriteriaBuilder,
         private readonly ObjectManagerInterface $objectManager,
-        private readonly MsiAvailability $msiAvailability
+        private readonly MsiAvailability $msiAvailability,
+        private readonly ErrorReporter $errorReporter
     ) {
     }
 
@@ -184,8 +186,11 @@ class StockLevelMsi implements AvailabilityAwareToolInterface
                 $row['salable_qty'] = $getProductSalableQty->execute($sku, $stockId);
                 $row['is_salable'] = $isProductSalable->execute($sku, $stockId);
             } catch (\Throwable $e) {
-                // Thrown for products without source item support and for stocks the SKU is not in.
-                $row['note'] = $e->getMessage();
+                // Thrown for products without source item support and for stocks the SKU is not in:
+                // Magento's own reason is the note, anything else is reported by reference.
+                $row['note'] = $this->errorReporter->isMagentoReason($e)
+                    ? $e->getMessage()
+                    : $this->errorReporter->reportToolFailure('stock_level_msi', $e);
             }
 
             $rows[] = $row;

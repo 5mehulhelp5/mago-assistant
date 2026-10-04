@@ -101,7 +101,14 @@ class ErrorReporter
         return $reference;
     }
 
-    private function isMagentoReason(\Throwable $exception): bool
+    /**
+     * Whether the exception is Magento's own reason, written for the person who made the call: a
+     * LocalizedException with nothing but LocalizedExceptions behind it
+     *
+     * @param \Throwable $exception
+     * @return bool
+     */
+    public function isMagentoReason(\Throwable $exception): bool
     {
         for ($link = $exception; $link !== null; $link = $link->getPrevious()) {
             if (!$link instanceof LocalizedException) {
