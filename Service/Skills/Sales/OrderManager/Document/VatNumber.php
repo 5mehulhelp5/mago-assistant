@@ -13,14 +13,30 @@ namespace MagoAssistant\Mago\Service\Skills\Sales\OrderManager\Document;
  * dots, in any case. A register lookup needs the two-letter member state in front, and the billing
  * address knows which state that is - so every consumer gets the same normalised number from the
  * order document rather than each repairing it on its own.
+ *
+ * Two leading letters are only taken as the prefix when they are a code a VAT number starts with:
+ * a member state, or the billing country. A French number keeps letters after its prefix
+ * (FRAB123456789), so "AB123456789" on a French address is not mistaken for one that has its own.
  */
 class VatNumber
 {
     /**
+     * The prefixes VIES uses. Greece is EL there but GR in ISO 3166 and on a Magento address, and
+     * XI is Northern Ireland.
+     */
+    private const MEMBER_STATES = [
+        'AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'EL', 'ES', 'FI', 'FR', 'HR', 'HU',
+        'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK', 'XI',
+    ];
+
+    private const ISO_TO_VAT_PREFIX = ['GR' => 'EL'];
+
+    /**
      * @param string $vatId   The stored value, possibly empty
      * @param string $country The billing address's ISO country code, possibly empty
-     * @return string Upper-cased, without separators, prefixed with the country when the stored
-     *                value carries no letters of its own; '' when there is no number
+     * @return string Upper-cased, without separators, prefixed with the billing country's VAT
+     *                prefix unless it already starts with a member state or that country;
+     *                '' when there is no number
      */
     public function withCountryPrefix(string $vatId, string $country): string
     {
@@ -29,9 +45,20 @@ class VatNumber
             return '';
         }
 
-        $hasPrefix = preg_match('/^[A-Z]{2}/', $number) === 1;
         $country = strtoupper(trim($country));
+        if (strlen($country) !== 2 || $this->hasPrefix($number, $country)) {
+            return $number;
+        }
 
-        return $hasPrefix || strlen($country) !== 2 ? $number : $country . $number;
+        return (self::ISO_TO_VAT_PREFIX[$country] ?? $country) . $number;
+    }
+
+    private function hasPrefix(string $number, string $country): bool
+    {
+        $lead = substr($number, 0, 2);
+
+        return in_array($lead, self::MEMBER_STATES, true)
+            || $lead === $country
+            || $lead === (self::ISO_TO_VAT_PREFIX[$country] ?? null);
     }
 }

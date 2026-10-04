@@ -27,6 +27,13 @@ final class VatNumberTest extends TestCase
             'no prefix and no usable country' => ['123456789B01', '', '123456789B01'],
             'empty' => ['', 'NL', ''],
             'only separators' => ['- . ', 'NL', ''],
+            'greek address takes the VIES prefix' => ['123456789', 'GR', 'EL123456789'],
+            'greek number already prefixed EL' => ['EL123456789', 'GR', 'EL123456789'],
+            'greek number typed with the ISO code' => ['GR123456789', 'GR', 'GR123456789'],
+            'austrian number starts with a letter of its own' => ['U12345678', 'AT', 'ATU12345678'],
+            'french letter key is not a prefix' => ['AB123456789', 'FR', 'FRAB123456789'],
+            'french number with its prefix' => ['FRAB123456789', 'FR', 'FRAB123456789'],
+            'non-EU number prefixed with its own country' => ['CHE-123.456.789 MWST', 'CH', 'CHE123456789MWST'],
         ];
     }
 
