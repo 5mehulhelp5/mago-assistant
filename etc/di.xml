@@ -450,4 +450,15 @@
             </argument>
         </arguments>
     </type>
+    <!-- system.xml is only read in the adminhtml area; the REST chat and cron need the structure pinned to it -->
+    <virtualType name="MagoAssistantMagoAdminhtmlConfigStructure" type="Magento\Config\Model\Config\Structure\Proxy">
+        <arguments>
+            <argument name="instanceName" xsi:type="string">adminhtmlConfigStructure</argument>
+        </arguments>
+    </virtualType>
+    <type name="MagoAssistant\Mago\Service\Skills\Configuration\ConfigPathAccess">
+        <arguments>
+            <argument name="structure" xsi:type="object">MagoAssistantMagoAdminhtmlConfigStructure</argument>
+        </arguments>
+    </type>
 </config>
