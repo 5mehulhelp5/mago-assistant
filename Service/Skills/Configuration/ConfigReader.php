@@ -66,6 +66,10 @@ class ConfigReader implements ToolInterface
             return ['error' => 'Access to this configuration path is restricted for security reasons'];
         }
 
+        if (!$this->pathAccess->isAllowed($path)) {
+            return ['error' => 'Access denied: you do not have the permission for this configuration section'];
+        }
+
         $scope = (string)($params['scope'] ?? StoreScopeContext::SCOPE_DEFAULT);
         $scopeId = (int)($params['scope_id'] ?? 0);
 
@@ -75,6 +79,12 @@ class ConfigReader implements ToolInterface
         }
 
         $value = $this->scopeConfig->getValue($path, $scope, $scopeId);
+        // A section or group path returns its whole subtree, decrypted, and the blocklist only saw
+        // the path: "carriers/ups" would hand over the password that "carriers/ups/password" is
+        // refused for.
+        if (is_array($value)) {
+            return $this->notASettingResult();
+        }
 
         $result = [
             'path' => $path,
@@ -86,6 +96,9 @@ class ConfigReader implements ToolInterface
 
         if ($scope === StoreScopeContext::SCOPE_DEFAULT && !$this->scopeContext->hasSingleStoreView()) {
             $overrides = $this->collectOverrides($path, $value);
+            if ($overrides === null) {
+                return $this->notASettingResult();
+            }
             $result['overrides'] = $overrides;
             $result['note'] = $overrides === []
                 ? 'No website or store view overrides this value; the default applies everywhere.'
@@ -104,19 +117,26 @@ class ConfigReader implements ToolInterface
      *
      * @param string $path
      * @param mixed $defaultValue
-     * @return array<int, array{scope:string,scope_id:int,scope_label:string,value:mixed}>
+     * @return array<int, array{scope:string,scope_id:int,scope_label:string,value:mixed}>|null Null when a
+     *         scope returns a subtree: the path is a section or group
      */
-    private function collectOverrides(string $path, mixed $defaultValue): array
+    private function collectOverrides(string $path, mixed $defaultValue): ?array
     {
         $overrides = [];
         foreach ($this->scopeContext->getWebsites() as $website) {
             $websiteValue = $this->scopeConfig->getValue($path, StoreScopeContext::SCOPE_WEBSITES, $website['id']);
+            if (is_array($websiteValue)) {
+                return null;
+            }
             if ($this->differs($websiteValue, $defaultValue)) {
                 $overrides[] = $this->override(StoreScopeContext::SCOPE_WEBSITES, $website['id'], $websiteValue);
             }
             foreach ($website['groups'] as $group) {
                 foreach ($group['stores'] as $store) {
                     $storeValue = $this->scopeConfig->getValue($path, StoreScopeContext::SCOPE_STORES, $store['id']);
+                    if (is_array($storeValue)) {
+                        return null;
+                    }
                     if ($this->differs($storeValue, $websiteValue)) {
                         $overrides[] = $this->override(StoreScopeContext::SCOPE_STORES, $store['id'], $storeValue);
                     }
@@ -177,5 +197,14 @@ class ConfigReader implements ToolInterface
     public function getMagentoAcl(array $input = []): string
     {
         return $this->pathAccess->aclResourceFor((string)($input['path'] ?? ''));
+    }
+
+    /**
+     * @return array{error: string}
+     */
+    private function notASettingResult(): array
+    {
+        return ['error' => 'This path is a configuration section or group. Name a single setting, '
+            . 'for example general/store_information/name'];
     }
 }

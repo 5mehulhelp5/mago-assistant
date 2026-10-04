@@ -7,11 +7,15 @@ declare(strict_types=1);
 namespace MagoAssistant\Mago\Test\Unit\Service\Skills\Configuration;
 
 use Magento\Framework\App\Config\ScopeConfigInterface;
+use Magento\Framework\AuthorizationInterface;
 use MagoAssistant\Mago\Service\Skills\Configuration\ConfigPathAccess;
 use MagoAssistant\Mago\Service\Skills\Configuration\ConfigReader;
 use MagoAssistant\Mago\Service\Store\StoreScopeContext;
 use MagoAssistant\Mago\Test\Unit\Fakes\BuildsStoreLayouts;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeAclAuthorization;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeConfigStructure;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeDesignConfigMetadata;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -183,12 +187,67 @@ class ConfigReaderTest extends TestCase
         );
     }
 
-    private function pathAccess(): ConfigPathAccess
+    /**
+     * Magento returns a group's whole subtree, with encrypted values decrypted, while the blocklist
+     * only judged the path (#222)
+     */
+    #[Test]
+    public function itRefusesAGroupPathInsteadOfReturningItsSubtree(): void
+    {
+        $scopeConfig = $this->createStub(ScopeConfigInterface::class);
+        $scopeConfig->method('getValue')->willReturn(['active' => '1', 'password' => 'ups-secret']);
+        $reader = new ConfigReader(
+            $scopeConfig,
+            new StoreScopeContext($this->multiStoreManager()),
+            $this->pathAccess()
+        );
+
+        $result = $reader->execute(['path' => 'general/store_information']);
+
+        self::assertArrayNotHasKey('value', $result);
+        self::assertStringContainsString('Name a single setting', $result['error']);
+    }
+
+    /**
+     * A group with no default can still hold rows for one website; its overrides carry the subtree
+     */
+    #[Test]
+    public function itRefusesAGroupPathThatOnlyAWebsiteHolds(): void
+    {
+        $scopeConfig = $this->createStub(ScopeConfigInterface::class);
+        $scopeConfig->method('getValue')->willReturnCallback(
+            static fn (string $path, string $scope) => $scope === 'websites' ? ['password' => 'ups-secret'] : null
+        );
+        $reader = new ConfigReader($scopeConfig, new StoreScopeContext($this->multiStoreManager()), $this->pathAccess());
+
+        $result = $reader->execute(['path' => 'general/store_information']);
+
+        self::assertStringNotContainsString('ups-secret', (string)json_encode($result));
+        self::assertStringContainsString('Name a single setting', $result['error']);
+    }
+
+    #[Test]
+    public function itChecksTheSectionOfThePathItIsAboutToReadAgain(): void
+    {
+        $reader = new ConfigReader(
+            $this->createStub(ScopeConfigInterface::class),
+            new StoreScopeContext($this->multiStoreManager()),
+            $this->pathAccess(new FakeAclAuthorization(['Magento_Config::config_general']))
+        );
+
+        $result = $reader->execute(['path' => 'web/secure/use_in_adminhtml']);
+
+        self::assertStringStartsWith('Access denied', $result['error']);
+    }
+
+    private function pathAccess(?AuthorizationInterface $authorization = null): ConfigPathAccess
     {
         return new ConfigPathAccess(
             (new FakeConfigStructure())
                 ->withSection('general', 'Magento_Config::config_general')
-                ->withSection('web', 'Magento_Config::web')
+                ->withSection('web', 'Magento_Config::web'),
+            $authorization ?? new FakeAuthorization(),
+            new FakeDesignConfigMetadata()
         );
     }
 }

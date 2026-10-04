@@ -74,6 +74,14 @@ class ConfigWriter implements ToolInterface
             return ['error' => 'Cannot modify this configuration path for security reasons'];
         }
 
+        if (!$this->pathAccess->isAllowed($path)) {
+            return ['error' => 'Access denied: you do not have the permission for this configuration section'];
+        }
+
+        if (!$this->pathAccess->isDeclared($path)) {
+            return ['error' => 'This path is not a setting under Stores > Configuration, so it cannot be set here'];
+        }
+
         $scope = (string)($params['scope'] ?? StoreScopeContext::SCOPE_DEFAULT);
         $scopeId = (int)($params['scope_id'] ?? 0);
 
