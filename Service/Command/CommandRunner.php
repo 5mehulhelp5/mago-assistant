@@ -9,6 +9,7 @@ namespace MagoAssistant\Mago\Service\Command;
 use Magento\Framework\AuthorizationInterface;
 use MagoAssistant\Mago\Api\Command\CommandInterface;
 use MagoAssistant\Mago\Api\Tool\ValidatingToolInterface;
+use MagoAssistant\Mago\Service\Acl\ToolAccess;
 use MagoAssistant\Mago\Service\Tool\ToolRegistry;
 
 /**
@@ -23,7 +24,8 @@ class CommandRunner
     public function __construct(
         private readonly CommandRegistry $registry,
         private readonly AuthorizationInterface $authorization,
-        private readonly ToolRegistry $toolRegistry
+        private readonly ToolRegistry $toolRegistry,
+        private readonly ToolAccess $toolAccess
     ) {
     }
 
@@ -265,6 +267,11 @@ class CommandRunner
         $tool = $this->toolRegistry->getTool($toolCall['name'], $adminUserId);
         if (!$tool instanceof ValidatingToolInterface) {
             return null;
+        }
+        // Denied before validation: it may already reach the service the admin was not granted
+        $denial = $this->toolAccess->denialReason($tool, $toolCall['input'], $adminUserId);
+        if ($denial !== null) {
+            return '**Error:** ' . $denial;
         }
         $refusal = $tool->findRefusal($toolCall['input']);
         if ($refusal === null) {
