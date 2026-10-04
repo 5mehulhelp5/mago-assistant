@@ -15,8 +15,8 @@ use Magento\Framework\Data\Form\FormKey;
 use Magento\Framework\Serialize\Serializer\Json;
 use MagoAssistant\Mago\Api\ChatServiceInterface;
 use MagoAssistant\Mago\Api\ConversationRepositoryInterface;
-use MagoAssistant\Mago\Logger\ErrorLogger;
 use MagoAssistant\Mago\Service\Conversation\NavigationNoteInjector;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 use MagoAssistant\Mago\Service\Form\PageContextHolder;
 use MagoAssistant\Mago\Service\Form\PageContextNormalizer;
 
@@ -31,7 +31,7 @@ class Confirm extends Action implements HttpPostActionInterface
         private readonly ChatServiceInterface $chatService,
         private readonly ConversationRepositoryInterface $conversationRepository,
         private readonly Json $json,
-        private readonly ErrorLogger $errorLogger,
+        private readonly ErrorReporter $errorReporter,
         private readonly FormKey $formKey,
         private readonly PageContextNormalizer $pageContextNormalizer,
         private readonly PageContextHolder $pageContextHolder,
@@ -224,8 +224,7 @@ class Confirm extends Action implements HttpPostActionInterface
                 'pending_confirmation' => $pendingConfirmation,
             ], true);
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('Confirm Controller', $e->getMessage());
-            $this->sendSse('error', ['error' => $e->getMessage()]);
+            $this->sendSse('error', ['error' => $this->errorReporter->report('Confirm Controller', $e)]);
             $this->sendSse('done', [], true);
         }
 

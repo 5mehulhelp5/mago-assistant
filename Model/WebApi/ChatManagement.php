@@ -12,8 +12,8 @@ use Magento\Framework\Serialize\Serializer\Json;
 use MagoAssistant\Mago\Api\ChatServiceInterface;
 use MagoAssistant\Mago\Api\ConversationRepositoryInterface;
 use MagoAssistant\Mago\Api\WebApi\ChatManagementInterface;
-use MagoAssistant\Mago\Logger\ErrorLogger;
 use MagoAssistant\Mago\Service\Ai\ChatService;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 use MagoAssistant\Mago\Service\Privacy\PrivacyService;
 
 class ChatManagement implements ChatManagementInterface
@@ -23,7 +23,7 @@ class ChatManagement implements ChatManagementInterface
         private readonly ConversationRepositoryInterface $conversationRepository,
         private readonly UserContextInterface $userContext,
         private readonly Json $json,
-        private readonly ErrorLogger $errorLogger,
+        private readonly ErrorReporter $errorReporter,
         private readonly PrivacyService $privacyService
     ) {
     }
@@ -84,8 +84,7 @@ class ChatManagement implements ChatManagementInterface
                 'pending_confirmation' => $pendingConfirmation,
             ]);
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('ChatManagement::sendMessage', $e->getMessage());
-            return $this->toJson(['error' => $e->getMessage()]);
+            return $this->toJson(['error' => $this->errorReporter->report('ChatManagement::sendMessage', $e)]);
         }
     }
 
@@ -96,7 +95,7 @@ class ChatManagement implements ChatManagementInterface
             $conversations = $this->conversationRepository->getListByUser($adminUserId);
             return $this->toJson(['conversations' => $conversations]);
         } catch (\Throwable $e) {
-            return $this->toJson(['error' => $e->getMessage()]);
+            return $this->toJson(['error' => $this->errorReporter->report('ChatManagement::getConversations', $e)]);
         }
     }
 
@@ -121,7 +120,7 @@ class ChatManagement implements ChatManagementInterface
 
             return $this->toJson($conversation);
         } catch (\Throwable $e) {
-            return $this->toJson(['error' => $e->getMessage()]);
+            return $this->toJson(['error' => $this->errorReporter->report('ChatManagement::getConversation', $e)]);
         }
     }
 
@@ -132,7 +131,7 @@ class ChatManagement implements ChatManagementInterface
             $this->conversationRepository->delete($conversationId, $adminUserId);
             return $this->toJson(['success' => true]);
         } catch (\Throwable $e) {
-            return $this->toJson(['error' => $e->getMessage()]);
+            return $this->toJson(['error' => $this->errorReporter->report('ChatManagement::deleteConversation', $e)]);
         }
     }
 
@@ -186,8 +185,7 @@ class ChatManagement implements ChatManagementInterface
                 'tool_results' => $results,
             ]);
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('ChatManagement::confirmAction', $e->getMessage());
-            return $this->toJson(['error' => $e->getMessage()]);
+            return $this->toJson(['error' => $this->errorReporter->report('ChatManagement::confirmAction', $e)]);
         }
     }
 
@@ -208,7 +206,7 @@ class ChatManagement implements ChatManagementInterface
 
             return $this->toJson(['success' => true, 'message' => 'Action rejected']);
         } catch (\Throwable $e) {
-            return $this->toJson(['error' => $e->getMessage()]);
+            return $this->toJson(['error' => $this->errorReporter->report('ChatManagement::rejectAction', $e)]);
         }
     }
 

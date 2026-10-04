@@ -49,7 +49,7 @@ class Repository implements ConversationRepositoryInterface
         $row = $connection->fetchRow($select);
 
         if (!$row) {
-            throw new \InvalidArgumentException('Conversation not found: ' . $conversationId);
+            throw new ConversationNotFoundException('Conversation not found: ' . $conversationId);
         }
 
         return $row;
@@ -68,7 +68,7 @@ class Repository implements ConversationRepositoryInterface
 
         if (!$row) {
             // Same message for missing and foreign rows, so the id space cannot be probed
-            throw new \InvalidArgumentException('Conversation not found: ' . $conversationId);
+            throw new ConversationNotFoundException('Conversation not found: ' . $conversationId);
         }
 
         return $row;
@@ -172,7 +172,7 @@ class Repository implements ConversationRepositoryInterface
         $row = $connection->fetchRow($select);
 
         if (!$row) {
-            throw new \InvalidArgumentException('Message not found: ' . $messageId);
+            throw new ConversationNotFoundException('Message not found: ' . $messageId);
         }
 
         return $row;
@@ -193,7 +193,7 @@ class Repository implements ConversationRepositoryInterface
 
         if (!$row) {
             // Same message for missing and foreign rows, so the id space cannot be probed
-            throw new \InvalidArgumentException('Message not found: ' . $messageId);
+            throw new ConversationNotFoundException('Message not found: ' . $messageId);
         }
 
         return $row;

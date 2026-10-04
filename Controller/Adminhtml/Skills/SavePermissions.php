@@ -11,6 +11,7 @@ use Magento\Backend\App\Action\Context;
 use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Controller\ResultInterface;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 use MagoAssistant\Mago\Service\Tool\ToolRegistry;
 
 class SavePermissions extends Action implements HttpPostActionInterface
@@ -20,7 +21,8 @@ class SavePermissions extends Action implements HttpPostActionInterface
     public function __construct(
         Context $context,
         private readonly ResourceConnection $resourceConnection,
-        private readonly ToolRegistry $toolRegistry
+        private readonly ToolRegistry $toolRegistry,
+        private readonly ErrorReporter $errorReporter
     ) {
         parent::__construct($context);
     }
@@ -74,7 +76,10 @@ class SavePermissions extends Action implements HttpPostActionInterface
 
             $this->messageManager->addSuccessMessage(__('Permissions saved for skill "%1".', $skillName));
         } catch (\Throwable $e) {
-            $this->messageManager->addErrorMessage(__('Error saving permissions: %1', $e->getMessage()));
+            $this->messageManager->addErrorMessage(__(
+                'The permissions could not be saved. Reference: %1',
+                $this->errorReporter->log('SavePermissions', $e)
+            ));
         }
 
         return $this->resultRedirectFactory->create()->setPath(

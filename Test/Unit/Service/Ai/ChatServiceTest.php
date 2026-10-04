@@ -14,9 +14,11 @@ use MagoAssistant\Mago\Api\Acl;
 use MagoAssistant\Mago\Api\Config\RepositoryInterface;
 use MagoAssistant\Mago\Logger\DebugLogger;
 use MagoAssistant\Mago\Logger\ErrorLogger;
+use MagoAssistant\Mago\Service\Ai\AiNotConfiguredException;
 use MagoAssistant\Mago\Service\Ai\AnswerWidgets;
 use MagoAssistant\Mago\Service\Ai\ChatService;
 use MagoAssistant\Mago\Service\Ai\Client;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 use MagoAssistant\Mago\Service\Form\PageContextHolder;
 use MagoAssistant\Mago\Service\Privacy\ConversationVault;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
@@ -131,7 +133,7 @@ final class ChatServiceTest extends TestCase
             $client,
             new ToolRegistry($checker, array_merge([$cmsData], $extraSkills)),
             new DebugLogger(new FakeLogger(), $json),
-            new ErrorLogger(new FakeLogger(), $json),
+            new ErrorReporter(new ErrorLogger(new FakeLogger(), $json), new PiiHeuristic()),
             $this->createMock(UsageLogger::class),
             new StoreScopeContext($this->singleStoreManager()),
             new AnswerWidgets(new ErrorLogger(new FakeLogger(), new Json())),
@@ -459,7 +461,8 @@ final class ChatServiceTest extends TestCase
         $storeManager = $this->createMock(StoreManagerInterface::class);
         $storeManager->method('getStores')->willThrowException(new \RuntimeException('stores table gone'));
         $errorLogger = $this->createMock(ErrorLogger::class);
-        $errorLogger->expects(self::once())->method('addLog')->with('StoreScopeContext', 'stores table gone');
+        $errorLogger->expects(self::once())->method('addLog')
+            ->with('StoreScopeContext', self::stringContains('stores table gone'));
 
         $response = $this->serviceWith($storeManager, $errorLogger)
             ->processMessage([['role' => 'user', 'content' => 'Hi']]);
@@ -505,18 +508,82 @@ final class ChatServiceTest extends TestCase
         self::assertSame(['system', 'user'], array_column($this->sentMessages, 'role'));
     }
 
+    /**
+     * A failing provider call puts its endpoint, key and response in the exception (#202)
+     */
+    #[Test]
+    public function aFailedProviderCallReachesTheAdminOnlyAsAReference(): void
+    {
+        $client = $this->createMock(Client::class);
+        $client->method('resolve')->willReturn($this->createStub(AiClientInterface::class));
+        $client->method('chat')->willThrowException(
+            new \RuntimeException('HTTP 401 from https://api.example.test/v1?key=sk-live-123')
+        );
+
+        $response = $this->serviceWith($this->singleStoreManager(), null, false, $client)
+            ->processMessage([['role' => 'user', 'content' => 'Hi']]);
+
+        self::assertStringNotContainsString('sk-live-123', $response['content']);
+        self::assertStringContainsString('Reference:', $response['content']);
+    }
+
+    /**
+     * Resolving the service makes no request; its message is the setup step the admin has to take
+     */
+    #[Test]
+    public function aServiceThatIsNotConfiguredIsExplainedToTheAdmin(): void
+    {
+        $setup = 'No AI service configured. Configure one under Stores > Configuration.';
+        $client = $this->createStub(Client::class);
+        $client->method('resolve')->willThrowException(new AiNotConfiguredException(__($setup)));
+
+        $response = $this->serviceWith($this->singleStoreManager(), null, false, $client)
+            ->processMessage([['role' => 'user', 'content' => 'Hi']]);
+
+        self::assertSame($setup, $response['content']);
+    }
+
+    /**
+     * The streaming path leaves a failed resolve to its controller, which reports it as an error
+     * event; streamed as text it would be stored as the assistant's answer and replayed (#202)
+     */
+    #[Test]
+    public function theStreamingPathLeavesAFailedResolveToItsController(): void
+    {
+        $client = $this->createStub(Client::class);
+        $client->method('resolve')->willThrowException(new \RuntimeException('SQLSTATE[HY000] connection lost'));
+        $streamed = [];
+
+        try {
+            $this->serviceWith($this->singleStoreManager(), null, false, $client)->processMessageStreaming(
+                [['role' => 'user', 'content' => 'Hi']],
+                static function (string $event, array $data) use (&$streamed): void {
+                    $streamed[] = $event;
+                }
+            );
+            self::fail('A failed resolve has to reach the controller');
+        } catch (\RuntimeException $e) {
+            self::assertSame('SQLSTATE[HY000] connection lost', $e->getMessage());
+        }
+
+        self::assertSame([], $streamed);
+    }
+
     private function serviceWith(
         StoreManagerInterface $storeManager,
         ?ErrorLogger $errorLogger = null,
-        bool $answerWidgets = false
+        bool $answerWidgets = false,
+        ?Client $client = null
     ): ChatService {
         $configRepository = $this->createMock(RepositoryInterface::class);
         $configRepository->method('getSystemPrompt')->willReturn(self::SYSTEM_PROMPT);
         $configRepository->method('getMaxToolIterations')->willReturn(1);
         $configRepository->method('isAnswerWidgetsEnabled')->willReturn($answerWidgets);
 
-        $client = $this->createMock(Client::class);
-        $client->method('resolve')->willReturn($this->createMock(AiClientInterface::class));
+        if ($client === null) {
+            $client = $this->createMock(Client::class);
+            $client->method('resolve')->willReturn($this->createMock(AiClientInterface::class));
+        }
         $client->method('chat')->willReturnCallback(function (AiClientInterface $aiClient, array $messages): array {
             $this->sentMessages = $messages;
             return ['content' => 'ok', 'tool_calls' => []];
@@ -527,7 +594,7 @@ final class ChatServiceTest extends TestCase
             $client,
             new ToolRegistry(null, []),
             $this->createMock(DebugLogger::class),
-            $errorLogger ?? $this->createMock(ErrorLogger::class),
+            new ErrorReporter($errorLogger ?? $this->createMock(ErrorLogger::class), new PiiHeuristic()),
             $this->createMock(UsageLogger::class),
             new StoreScopeContext($storeManager),
             new AnswerWidgets(new ErrorLogger(new FakeLogger(), new Json())),
@@ -790,7 +857,7 @@ final class ChatServiceTest extends TestCase
             $this->createMock(Client::class),
             new ToolRegistry(null, [$tool]),
             $this->createMock(DebugLogger::class),
-            $this->createMock(ErrorLogger::class),
+            new ErrorReporter($this->createMock(ErrorLogger::class), new PiiHeuristic()),
             $this->createMock(UsageLogger::class),
             new StoreScopeContext($this->createMock(StoreManagerInterface::class)),
             new AnswerWidgets(new ErrorLogger(new FakeLogger(), new Json())),
