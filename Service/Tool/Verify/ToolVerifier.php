@@ -45,7 +45,7 @@ class ToolVerifier
             $this->checkDescription($tool),
             $this->checkSchema($tool),
             ...$this->checkAcls($tool, [], 'without input'),
-            ...($params === [] ? [] : $this->checkAcls($tool, $params, 'for this call')),
+            ...($params === [] ? $this->checkInputNeeded($tool) : $this->checkAcls($tool, $params, 'for this call')),
             $this->checkAccess($tool, $params),
             ...$this->checkClassification($tool->getFieldClassification($this->actionOf($params))),
         ];
@@ -105,6 +105,22 @@ class ToolVerifier
             fn (string $resource): ToolCheck => $this->checkAcl($resource, $context),
             $this->toolAccess->resourcesFor($tool, $params)
         );
+    }
+
+    /**
+     * A tool whose calls need parameters may also resolve its resource from them (config_reader
+     * and config_writer take it from the path's section), which a check without input cannot see
+     *
+     * @return ToolCheck[]
+     */
+    private function checkInputNeeded(ToolInterface $tool): array
+    {
+        return ($tool->getParameterSchema()['required'] ?? []) === []
+            ? []
+            : [ToolCheck::pass(
+                'ACL checked without input only; pass the call parameters as JSON to check the resource '
+                . 'a real call needs'
+            )];
     }
 
     private function checkAcl(string $resource, string $context): ToolCheck

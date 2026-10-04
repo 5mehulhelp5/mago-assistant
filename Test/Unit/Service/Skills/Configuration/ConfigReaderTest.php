@@ -227,6 +227,18 @@ class ConfigReaderTest extends TestCase
     }
 
     #[Test]
+    public function itReadsAndGatesTheTrimmedPath(): void
+    {
+        $reader = $this->readerWith(['default:0' => 'Main Shop']);
+
+        $result = $reader->execute(['path' => ' /' . self::PATH . '/ ']);
+
+        self::assertSame(self::PATH, $result['path']);
+        self::assertSame('Main Shop', $result['value']);
+        self::assertSame('Magento_Config::config_general', $reader->getMagentoAcl(['path' => self::PATH . '/']));
+    }
+
+    #[Test]
     public function itChecksTheSectionOfThePathItIsAboutToReadAgain(): void
     {
         $reader = new ConfigReader(

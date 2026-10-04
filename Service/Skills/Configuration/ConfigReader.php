@@ -57,7 +57,7 @@ class ConfigReader implements ToolInterface
 
     public function execute(array $params): array
     {
-        $path = $params['path'] ?? '';
+        $path = $this->pathAccess->normalise($params['path'] ?? '');
         if (!$path) {
             return ['error' => 'Path parameter is required'];
         }
@@ -196,7 +196,7 @@ class ConfigReader implements ToolInterface
 
     public function getMagentoAcl(array $input = []): string
     {
-        return $this->pathAccess->aclResourceFor((string)($input['path'] ?? ''));
+        return $this->pathAccess->aclResourceFor($this->pathAccess->normalise($input['path'] ?? ''));
     }
 
     /**
