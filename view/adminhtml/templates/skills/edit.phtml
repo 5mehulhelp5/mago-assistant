@@ -14,6 +14,9 @@ $permissions = $block->getCurrentPermissions();
 $saveUrl = $block->getSaveUrl();
 $backUrl = $block->getBackUrl();
 $canEdit = $block->canEdit();
+$defaultLabel = $skill->getMagentoAcl() === \MagoAssistant\Mago\Api\Acl::MAGO_PER_USER
+    ? __('Default (not granted)')
+    : __('Default (ACL)');
 ?>
 
 <div class="admin__page-section">
@@ -72,7 +75,7 @@ $canEdit = $block->canEdit();
                                     <select name="permissions[<?= (int)$userId ?>]"
                                             class="admin__control-select"<?= $canEdit ? '' : ' disabled' ?>>
                                         <option value=""<?= $current === '' ? ' selected' : '' ?>>
-                                            <?= $block->escapeHtml(__('Default (ACL)')) ?>
+                                            <?= $block->escapeHtml($defaultLabel) ?>
                                         </option>
                                         <option value="read"<?= $current === 'read' ? ' selected' : '' ?>>
                                             <?= $block->escapeHtml(__('Read Only')) ?>

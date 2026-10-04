@@ -337,18 +337,17 @@ final class ToolRegistryTest extends TestCase
     }
 
     /**
-     * A per-user tool is offered only on an explicit grant - the same answer ToolAccess gives when
-     * it is called. Offering it on the module-wide grant and then refusing it would only have the
-     * model try.
+     * A per-user tool without a grant stays in the list, so the model learns from ToolAccess that it
+     * is not granted instead of answering with another tool. An explicit Disabled row still hides it.
      */
     #[Test]
-    public function aPerUserToolIsOfferedOnlyOnAnExplicitGrant(): void
+    public function aPerUserToolStaysOfferedWithoutAGrantAndHiddenWhenDisabled(): void
     {
         $tool = new FakeTool('issue_tracker', ['list'], ['list'], Acl::MAGO_PER_USER);
         $blanketOnly = (new FakePermissionChecker())->withDecision('issue_tracker', 'read', true);
-        $explicit = (new FakePermissionChecker())->withExplicitGrant('issue_tracker', 'read');
+        $disabled = (new FakePermissionChecker())->withDecision('issue_tracker', 'read', false);
 
-        self::assertSame([], (new ToolRegistry($blanketOnly, [$tool]))->getEnabledTools(7));
-        self::assertSame([$tool], array_values((new ToolRegistry($explicit, [$tool]))->getEnabledTools(7)));
+        self::assertSame([$tool], array_values((new ToolRegistry($blanketOnly, [$tool]))->getEnabledTools(7)));
+        self::assertSame([], (new ToolRegistry($disabled, [$tool]))->getEnabledTools(7));
     }
 }
