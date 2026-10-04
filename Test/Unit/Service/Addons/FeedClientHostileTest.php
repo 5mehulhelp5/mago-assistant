@@ -10,6 +10,8 @@ use Magento\Framework\HTTP\Client\Curl;
 use Magento\Framework\Serialize\Serializer\Json;
 use MagoAssistant\Mago\Logger\ErrorLogger;
 use MagoAssistant\Mago\Service\Addons\FeedClient;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
+use MagoAssistant\Mago\Service\Privacy\PiiHeuristic;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -26,7 +28,12 @@ final class FeedClientHostileTest extends TestCase
         $curl->method('getBody')->willReturn((string)json_encode(['addons' => $entries]));
         $curl->method('getStatus')->willReturn(200);
 
-        return (new FeedClient($curl, new Json(), $this->createStub(ErrorLogger::class)))->fetch() ?? [];
+        return (new FeedClient(
+            $curl,
+            new Json(),
+            $this->createStub(ErrorLogger::class),
+            new ErrorReporter($this->createStub(ErrorLogger::class), new PiiHeuristic())
+        ))->fetch() ?? [];
     }
 
     #[Test]
@@ -124,13 +131,23 @@ final class FeedClientHostileTest extends TestCase
     {
         $curl = $this->createStub(Curl::class);
         $curl->method('getStatus')->willReturn(200);
-        $client = new FeedClient($curl, new Json(), $this->createStub(ErrorLogger::class));
+        $client = new FeedClient(
+            $curl,
+            new Json(),
+            $this->createStub(ErrorLogger::class),
+            new ErrorReporter($this->createStub(ErrorLogger::class), new PiiHeuristic())
+        );
 
         foreach (['{"addons": "not an array"}', '{"addons": null}', '[]', 'null', '{}'] as $body) {
             $curl = $this->createStub(Curl::class);
             $curl->method('getStatus')->willReturn(200);
             $curl->method('getBody')->willReturn($body);
-            $client = new FeedClient($curl, new Json(), $this->createStub(ErrorLogger::class));
+            $client = new FeedClient(
+                $curl,
+                new Json(),
+                $this->createStub(ErrorLogger::class),
+                new ErrorReporter($this->createStub(ErrorLogger::class), new PiiHeuristic())
+            );
 
             self::assertNull($client->fetch(), 'Should have refused: ' . $body);
         }

@@ -9,6 +9,7 @@ namespace MagoAssistant\Mago\Service\Docs;
 use Magento\Framework\HTTP\Client\CurlFactory;
 use Magento\Framework\Serialize\Serializer\Json;
 use MagoAssistant\Mago\Logger\ErrorLogger;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 
 class GitHubDocsSource
 {
@@ -20,7 +21,8 @@ class GitHubDocsSource
         // Own client, not InternalApiClient: raw.githubusercontent.com redirects, which that client disables.
         private readonly CurlFactory $curlFactory,
         private readonly Json $json,
-        private readonly ErrorLogger $errorLogger
+        private readonly ErrorLogger $errorLogger,
+        private readonly ErrorReporter $errorReporter
     ) {
     }
 
@@ -52,7 +54,7 @@ class GitHubDocsSource
         try {
             $data = $this->json->unserialize($body);
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('DocsSource', 'Invalid tree JSON: ' . $e->getMessage());
+            $this->errorReporter->log('DocsSource: invalid tree JSON', $e);
             return null;
         }
 
@@ -115,7 +117,7 @@ class GitHubDocsSource
 
             return $curl->getBody();
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('DocsSource', $e->getMessage() . ' for ' . $url);
+            $this->errorReporter->log('DocsSource: ' . $url, $e);
             return null;
         }
     }

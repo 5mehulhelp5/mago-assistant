@@ -12,6 +12,7 @@ use Magento\Framework\App\Action\HttpGetActionInterface;
 use Magento\Framework\Controller\Result\JsonFactory;
 use Magento\Framework\Controller\ResultInterface;
 use Magento\Store\Model\StoreManagerInterface;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 
 class DetectUrl extends Action implements HttpGetActionInterface
 {
@@ -39,7 +40,8 @@ class DetectUrl extends Action implements HttpGetActionInterface
     public function __construct(
         Context $context,
         private readonly JsonFactory $jsonFactory,
-        private readonly StoreManagerInterface $storeManager
+        private readonly StoreManagerInterface $storeManager,
+        private readonly ErrorReporter $errorReporter
     ) {
         parent::__construct($context);
     }
@@ -88,7 +90,7 @@ class DetectUrl extends Action implements HttpGetActionInterface
             return $result->setData([
                 'success' => false,
                 'url' => '',
-                'message' => 'Could not detect URL: ' . $e->getMessage(),
+                'message' => 'Could not detect URL. Reference: ' . $this->errorReporter->log('DetectUrl', $e),
             ]);
         }
     }

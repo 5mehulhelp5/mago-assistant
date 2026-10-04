@@ -9,6 +9,7 @@ namespace MagoAssistant\Mago\Service\Addons;
 use Magento\Framework\HTTP\Client\Curl;
 use Magento\Framework\Serialize\Serializer\Json;
 use MagoAssistant\Mago\Logger\ErrorLogger;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 
 /**
  * Fetches the add-on feed.
@@ -40,7 +41,8 @@ class FeedClient
     public function __construct(
         private readonly Curl $curl,
         private readonly Json $json,
-        private readonly ErrorLogger $errorLogger
+        private readonly ErrorLogger $errorLogger,
+        private readonly ErrorReporter $errorReporter
     ) {
     }
 
@@ -62,7 +64,7 @@ class FeedClient
         try {
             $decoded = $this->json->unserialize($body);
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('AddonFeed', 'Feed is not valid JSON: ' . $e->getMessage());
+            $this->errorReporter->log('AddonFeed: feed is not valid JSON', $e);
 
             return null;
         }
@@ -162,7 +164,7 @@ class FeedClient
 
             return $body;
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('AddonFeed', 'Could not reach the feed: ' . $e->getMessage());
+            $this->errorReporter->log('AddonFeed: could not reach the feed', $e);
 
             return null;
         }

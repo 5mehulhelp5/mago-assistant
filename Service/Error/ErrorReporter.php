@@ -30,6 +30,8 @@ class ErrorReporter
      * provider key. The personal-data mask does not know them, and a log file is copied around.
      */
     private const SECRETS = [
+        '/\b((?:x-)?api[_-]?key|authorization|proxy-authorization)["\']?\s*:\s*\[?\s*["\']?'
+            . '(?:(?:basic|bearer|digest|token)\s+)?[A-Za-z0-9._~+\/=-]{6,}/i' => '$1: [redacted]',
         '/\b((?:api[_-]?)?key|token|secret|password|access_token)=[^&\s"\']+/i' => '$1=[redacted]',
         '/\bBearer\s+[A-Za-z0-9._~+\/=-]+/' => 'Bearer [redacted]',
         '/\bsk-[A-Za-z0-9_-]{8,}/' => '[redacted]',
@@ -42,7 +44,6 @@ class ErrorReporter
         AiNotConfiguredException::class,
         AuthorizationException::class,
         ConversationNotFoundException::class,
-        NoSuchEntityException::class,
     ];
 
     public function __construct(
@@ -60,6 +61,11 @@ class ErrorReporter
             if ($exception instanceof $class) {
                 return $exception->getMessage();
             }
+        }
+        // Core fills "No such entity with %fieldName = %fieldValue" with the value it looked up;
+        // a phrase without parameters ("No store view is available.") carries none.
+        if ($exception instanceof NoSuchEntityException && $exception->getParameters() === []) {
+            return $exception->getMessage();
         }
 
         return (string)__(

@@ -8,7 +8,7 @@ namespace MagoAssistant\Mago\Service\Flag;
 
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Serialize\Serializer\Json;
-use MagoAssistant\Mago\Logger\ErrorLogger;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 
 /**
  * Feedback on answers, stored and read the way the rest of this module talks to its tables: through
@@ -30,7 +30,7 @@ class FlagRepository
         private readonly ResourceConnection $resourceConnection,
         private readonly SnapshotBuilder $snapshotBuilder,
         private readonly Json $json,
-        private readonly ErrorLogger $errorLogger
+        private readonly ErrorReporter $errorReporter
     ) {
     }
 
@@ -204,13 +204,9 @@ class FlagRepository
         try {
             $decoded = $this->json->unserialize($stored);
         } catch (\InvalidArgumentException $exception) {
-            $this->errorLogger->addLog(
-                'Flag Repository',
-                sprintf(
-                    'The snapshot of flag %d could not be read: %s',
-                    (int)($flag['entity_id'] ?? 0),
-                    $exception->getMessage()
-                )
+            $this->errorReporter->log(
+                sprintf('Flag Repository: the snapshot of flag %d could not be read', (int)($flag['entity_id'] ?? 0)),
+                $exception
             );
 
             return [];
