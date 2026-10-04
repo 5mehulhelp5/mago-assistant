@@ -8,6 +8,7 @@ namespace MagoAssistant\Mago\Test\Unit\Service\Error;
 
 use Magento\Framework\Exception\AlreadyExistsException;
 use Magento\Framework\Exception\AuthorizationException;
+use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\Serialize\Serializer\Json;
 use MagoAssistant\Mago\Logger\ErrorLogger;
@@ -105,5 +106,20 @@ final class ErrorReporterTest extends TestCase
         self::assertStringNotContainsString('SQLSTATE', $message);
         self::assertStringContainsString('Reference:', $message);
         self::assertStringContainsString('SQLSTATE[23000]', implode("\n", $this->logger->getMessages()));
+    }
+
+    /**
+     * Core repositories put the driver's text in their own message ("Could not save the page: %1")
+     */
+    #[Test]
+    public function aMagentoMessageWrappingADriverErrorIsTreatedAsTheDriverError(): void
+    {
+        $driver = new \RuntimeException("SQLSTATE[23000]: Duplicate entry, query was: INSERT INTO cms_page");
+        $wrapped = new LocalizedException(__('Could not save the page: %1', $driver->getMessage()), $driver);
+
+        $message = $this->reporter->reportToolFailure('Tool Error cms_page', $wrapped);
+
+        self::assertStringNotContainsString('INSERT INTO', $message);
+        self::assertStringContainsString('Reference:', $message);
     }
 }

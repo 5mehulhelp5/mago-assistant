@@ -72,18 +72,17 @@ class ErrorReporter
      * The error a failed tool call answers with. It reaches the model, the stored tool trace and a
      * WebApi caller's tool_results: Magento's own LocalizedException ("URL key already exists")
      * tells the model what to fix, while a database or HTTP client exception carries the query or
-     * the endpoint and is replaced by a reference.
+     * the endpoint and is replaced by a reference. Core repositories wrap such an exception's text
+     * in a LocalizedException ("Could not save the page: %1"), so one caused by anything else is
+     * treated as that cause.
      */
     public function reportToolFailure(string $context, \Throwable $exception): string
     {
-        if ($exception instanceof LocalizedException) {
-            return $exception->getMessage();
-        }
+        $reference = $this->log($context, $exception);
 
-        return (string)__(
-            'The tool failed unexpectedly. Reference: %1 (see var/log/mago-error.log).',
-            $this->log($context, $exception)
-        );
+        return $this->isMagentoReason($exception)
+            ? $exception->getMessage()
+            : (string)__('The tool failed unexpectedly. Reference: %1 (see var/log/mago-error.log).', $reference);
     }
 
     /**
@@ -100,6 +99,17 @@ class ErrorReporter
         $this->errorLogger->addLog($context, $entry);
 
         return $reference;
+    }
+
+    private function isMagentoReason(\Throwable $exception): bool
+    {
+        for ($link = $exception; $link !== null; $link = $link->getPrevious()) {
+            if (!$link instanceof LocalizedException) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function describe(\Throwable $exception): string
