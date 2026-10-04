@@ -12,6 +12,7 @@ use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magento\Framework\Controller\Result\JsonFactory;
 use Magento\Framework\Controller\ResultInterface;
 use MagoAssistant\Mago\Api\ConversationRepositoryInterface;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 use MagoAssistant\Mago\Service\Flag\FlagRepository;
 use MagoAssistant\Mago\Service\Privacy\PrivacyService;
 
@@ -24,7 +25,8 @@ class Load extends Action implements HttpPostActionInterface
         private readonly ConversationRepositoryInterface $conversationRepository,
         private readonly JsonFactory $jsonFactory,
         private readonly PrivacyService $privacyService,
-        private readonly FlagRepository $flagRepository
+        private readonly FlagRepository $flagRepository,
+        private readonly ErrorReporter $errorReporter
     ) {
         parent::__construct($context);
     }
@@ -71,7 +73,7 @@ class Load extends Action implements HttpPostActionInterface
                 'messages' => $messages,
             ]);
         } catch (\Throwable $e) {
-            return $result->setData(['error' => $e->getMessage()]);
+            return $result->setData(['error' => $this->errorReporter->report('Load Controller', $e)]);
         }
     }
 }

@@ -15,8 +15,8 @@ use MagoAssistant\Mago\Api\Tool\ToolInterface;
 use MagoAssistant\Mago\Api\Tool\UpfrontGuidanceToolInterface;
 use MagoAssistant\Mago\Api\Config\RepositoryInterface as ConfigRepository;
 use MagoAssistant\Mago\Logger\DebugLogger;
-use MagoAssistant\Mago\Logger\ErrorLogger;
 use MagoAssistant\Mago\Service\Acl\ToolAccess;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 use MagoAssistant\Mago\Service\Form\PageContextHolder;
 use MagoAssistant\Mago\Service\Store\StoreScopeContext;
 use MagoAssistant\Mago\Service\Privacy\PrivacyService;
@@ -47,7 +47,7 @@ class ChatService implements ChatServiceInterface
         private readonly Client $client,
         private readonly ToolRegistry $toolRegistry,
         private readonly DebugLogger $debugLogger,
-        private readonly ErrorLogger $errorLogger,
+        private readonly ErrorReporter $errorReporter,
         private readonly UsageLogger $usageLogger,
         private readonly StoreScopeContext $storeScopeContext,
         private readonly AnswerWidgets $answerWidgets,
@@ -95,8 +95,7 @@ class ChatService implements ChatServiceInterface
         try {
             $client = $this->client->resolve();
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('ChatService', $e->getMessage());
-            return ['content' => 'An error occurred: ' . $e->getMessage(), 'tool_calls' => []];
+            return ['content' => $this->errorReporter->report('ChatService', $e), 'tool_calls' => []];
         }
 
         $tools = $this->toolRegistry->getToolDefinitions($adminUserId);
@@ -114,8 +113,7 @@ class ChatService implements ChatServiceInterface
             try {
                 $response = $this->client->chat($client, $messages, $tools);
             } catch (\Throwable $e) {
-                $this->errorLogger->addLog('ChatService', $e->getMessage());
-                return ['content' => 'An error occurred: ' . $e->getMessage(), 'tool_calls' => []];
+                return ['content' => $this->errorReporter->report('ChatService', $e), 'tool_calls' => []];
             }
 
             $this->logUsage($response, $adminUserId, $conversationId, $client, $messages);
@@ -179,6 +177,8 @@ class ChatService implements ChatServiceInterface
 
     public function processMessageStreaming(array $messages, callable $onChunk, ?int $conversationId = null, ?int $adminUserId = null): array
     {
+        // Thrown rather than answered: the Stream and Confirm controllers report it as an error
+        // event, where a returned message would be stored as the assistant's answer.
         $client = $this->client->resolve();
         $tools = $this->toolRegistry->getToolDefinitions($adminUserId);
         $maxIterations = $this->configRepository->getMaxToolIterations();
@@ -216,13 +216,8 @@ class ChatService implements ChatServiceInterface
         };
 
         for ($i = 0; $i < $maxIterations; $i++) {
-            try {
-                $response = $this->client->stream($client, $messages, $tools, $streamOut);
-                $flushCarry();
-            } catch (\Throwable $e) {
-                $this->errorLogger->addLog('ChatService Stream', $e->getMessage());
-                throw $e;
-            }
+            $response = $this->client->stream($client, $messages, $tools, $streamOut);
+            $flushCarry();
 
             $this->logUsage($response, $adminUserId, $conversationId, $client, $messages);
 
@@ -560,7 +555,7 @@ class ChatService implements ChatServiceInterface
             $impacts = $tool->getImpacts($input, (int)$adminUserId);
         } catch (\Throwable $e) {
             // The card still warns without the list; a broken impact lookup must not block the ask
-            $this->errorLogger->addLog('Tool Impacts', ['tool' => $tool->getName(), 'error' => $e->getMessage()]);
+            $this->errorReporter->log('Tool Impacts ' . $tool->getName(), $e);
             $impacts = [];
         }
 
@@ -597,7 +592,7 @@ class ChatService implements ChatServiceInterface
                 ]
             );
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('UsageLogger', $e->getMessage());
+            $this->errorReporter->log('UsageLogger', $e);
         }
     }
 
@@ -797,13 +792,10 @@ class ChatService implements ChatServiceInterface
             }
             return $this->capToolResult($this->withClientDirective($result, $directive), $toolCall['name']);
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('Tool Error', [
-                'tool' => $toolCall['name'],
-                'error' => $e->getMessage(),
-            ]);
+            $error = $this->errorReporter->reportToolFailure('Tool Error ' . $toolCall['name'], $e);
             // The exception message can embed a rehydrated argument, so it goes through the filter
             // (its "error" envelope is re-scrubbed) rather than straight to the LLM.
-            return $this->privacyService->filterToolResult($classes, ['error' => $e->getMessage()]);
+            return $this->privacyService->filterToolResult($classes, ['error' => $error]);
         }
     }
 
@@ -1206,7 +1198,7 @@ class ChatService implements ChatServiceInterface
         try {
             return $this->storeScopeContext->toPromptSection();
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('StoreScopeContext', $e->getMessage());
+            $this->errorReporter->log('StoreScopeContext', $e);
             return '';
         }
     }

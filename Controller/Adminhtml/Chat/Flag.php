@@ -14,7 +14,7 @@ use Magento\Framework\Controller\ResultInterface;
 use Magento\Framework\Data\Form\FormKey;
 use Magento\Framework\Serialize\Serializer\Json;
 use MagoAssistant\Mago\Api\ConversationRepositoryInterface;
-use MagoAssistant\Mago\Logger\ErrorLogger;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 use MagoAssistant\Mago\Service\Flag\FlagRepository;
 
 /**
@@ -37,7 +37,7 @@ class Flag extends Action implements HttpPostActionInterface
         private readonly FlagRepository $flagRepository,
         private readonly JsonFactory $jsonFactory,
         private readonly Json $json,
-        private readonly ErrorLogger $errorLogger,
+        private readonly ErrorReporter $errorReporter,
         private readonly FormKey $formKey
     ) {
         parent::__construct($context);
@@ -93,9 +93,7 @@ class Flag extends Action implements HttpPostActionInterface
                 'flag_id' => $flagId,
             ]);
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('Flag Controller', $e->getMessage());
-
-            return $result->setData(['error' => $e->getMessage()]);
+            return $result->setData(['error' => $this->errorReporter->report('Flag Controller', $e)]);
         }
     }
 }

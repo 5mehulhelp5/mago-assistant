@@ -17,11 +17,11 @@ use MagoAssistant\Mago\Api\ChatServiceInterface;
 use MagoAssistant\Mago\Api\Config\RepositoryInterface as ConfigRepository;
 use MagoAssistant\Mago\Api\ConversationRepositoryInterface;
 use MagoAssistant\Mago\Logger\DebugLogger;
-use MagoAssistant\Mago\Logger\ErrorLogger;
 use MagoAssistant\Mago\Model\Conversation\PageLocationRecorder;
 use MagoAssistant\Mago\Service\Ai\Client;
 use MagoAssistant\Mago\Service\Command\CommandRunner;
 use MagoAssistant\Mago\Service\Conversation\NavigationNoteInjector;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 use MagoAssistant\Mago\Service\Form\PageContextHolder;
 use MagoAssistant\Mago\Service\Form\PageContextNormalizer;
 use MagoAssistant\Mago\Service\Privacy\PrivacyService;
@@ -39,7 +39,7 @@ class Stream extends Action implements HttpPostActionInterface
         private readonly ConfigRepository $configRepository,
         private readonly Client $client,
         private readonly Json $json,
-        private readonly ErrorLogger $errorLogger,
+        private readonly ErrorReporter $errorReporter,
         private readonly DebugLogger $debugLogger,
         private readonly FormKey $formKey,
         private readonly CommandRunner $commandRunner,
@@ -121,7 +121,7 @@ class Stream extends Action implements HttpPostActionInterface
             try {
                 $this->client->resolve();
             } catch (\Throwable $e) {
-                $this->sendSse('error', ['error' => $e->getMessage()]);
+                $this->sendSse('error', ['error' => $this->errorReporter->report('Stream Controller', $e)]);
                 $this->sendSse('done', []);
                 $this->terminateResponse();
             }
@@ -251,8 +251,7 @@ class Stream extends Action implements HttpPostActionInterface
                 'pending_confirmation' => $pendingConfirmation,
             ], true);
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('Stream Controller', $e->getMessage() . "\n" . $e->getTraceAsString());
-            $this->sendSse('error', ['error' => $e->getMessage()]);
+            $this->sendSse('error', ['error' => $this->errorReporter->report('Stream Controller', $e)]);
             $this->sendSse('done', [], true);
         }
 

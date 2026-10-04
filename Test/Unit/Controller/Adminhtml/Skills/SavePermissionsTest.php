@@ -13,9 +13,14 @@ use Magento\Framework\App\RequestInterface;
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\Adapter\AdapterInterface;
 use Magento\Framework\Message\ManagerInterface;
+use Magento\Framework\Serialize\Serializer\Json;
 use MagoAssistant\Mago\Api\Tool\ToolInterface;
 use MagoAssistant\Mago\Controller\Adminhtml\Skills\SavePermissions;
+use MagoAssistant\Mago\Logger\ErrorLogger;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
+use MagoAssistant\Mago\Service\Privacy\PiiHeuristic;
 use MagoAssistant\Mago\Service\Tool\ToolRegistry;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeLogger;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -76,6 +81,11 @@ final class SavePermissionsTest extends TestCase
         $resource->method('getConnection')->willReturn($this->connection);
         $resource->method('getTableName')->willReturnArgument(0);
 
-        return new SavePermissions($context, $resource, $this->toolRegistry);
+        return new SavePermissions(
+            $context,
+            $resource,
+            $this->toolRegistry,
+            new ErrorReporter(new ErrorLogger(new FakeLogger(), new Json()), new PiiHeuristic())
+        );
     }
 }

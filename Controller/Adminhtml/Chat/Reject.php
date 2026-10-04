@@ -14,7 +14,7 @@ use Magento\Framework\Controller\ResultInterface;
 use Magento\Framework\Data\Form\FormKey;
 use Magento\Framework\Serialize\Serializer\Json;
 use MagoAssistant\Mago\Api\ConversationRepositoryInterface;
-use MagoAssistant\Mago\Logger\ErrorLogger;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 
 class Reject extends Action implements HttpPostActionInterface
 {
@@ -27,7 +27,7 @@ class Reject extends Action implements HttpPostActionInterface
         private readonly ConversationRepositoryInterface $conversationRepository,
         private readonly JsonFactory $jsonFactory,
         private readonly Json $json,
-        private readonly ErrorLogger $errorLogger,
+        private readonly ErrorReporter $errorReporter,
         private readonly FormKey $formKey
     ) {
         parent::__construct($context);
@@ -70,8 +70,7 @@ class Reject extends Action implements HttpPostActionInterface
 
             return $result->setData(['success' => true]);
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('Reject Controller', $e->getMessage());
-            return $result->setData(['error' => $e->getMessage()]);
+            return $result->setData(['error' => $this->errorReporter->report('Reject Controller', $e)]);
         }
     }
 

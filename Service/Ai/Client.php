@@ -10,6 +10,8 @@ use MageOS\AiBase\Api\AiClientFactoryInterface;
 use MageOS\AiBase\Api\AiClientInterface;
 use MageOS\AiBase\Api\Data\ChatResponseInterface;
 use MageOS\AiBase\Api\Data\StreamChunkType;
+use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Phrase;
 use MagoAssistant\Mago\Api\Config\RepositoryInterface as ConfigRepository;
 use MagoAssistant\Mago\Service\Privacy\EgressTripwire;
 
@@ -41,15 +43,24 @@ class Client
      * Resolve the service the administrator picked, or the first usable one.
      *
      * @return AiClientInterface
-     * @throws \Magento\Framework\Exception\LocalizedException When nothing usable is configured
+     * @throws AiNotConfiguredException When nothing usable is configured
      */
     public function resolve(): AiClientInterface
     {
         $serviceId = $this->configRepository->getAiServiceId();
 
-        return $serviceId === ''
-            ? $this->clientFactory->create()
-            : $this->clientFactory->createById($serviceId);
+        try {
+            return $serviceId === ''
+                ? $this->clientFactory->create()
+                : $this->clientFactory->createById($serviceId);
+        } catch (LocalizedException $e) {
+            // Only the factory's own setup messages; a subclass (or a replacement factory that
+            // probes the endpoint) may carry request details and is reported generically.
+            if ($e::class !== LocalizedException::class) {
+                throw $e;
+            }
+            throw new AiNotConfiguredException(new Phrase($e->getRawMessage(), $e->getParameters()), $e);
+        }
     }
 
     /**

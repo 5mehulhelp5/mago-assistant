@@ -11,6 +11,7 @@ use MagoAssistant\Mago\Logger\DebugLogger;
 use MagoAssistant\Mago\Logger\ErrorLogger;
 use MagoAssistant\Mago\Service\Ai\AnswerWidgets;
 use MagoAssistant\Mago\Service\Ai\ChatService;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 use MagoAssistant\Mago\Service\Form\PageContextHolder;
 use MagoAssistant\Mago\Service\Privacy\ConversationVault;
 use MagoAssistant\Mago\Service\Privacy\PiiHeuristic;
@@ -197,7 +198,7 @@ final class ChatServiceToolConfirmationTest extends TestCase
             $this->client,
             new ToolRegistry($this->permissions, array_merge([$cmsData], $extraSkills)),
             new DebugLogger(new FakeLogger(), $json),
-            new ErrorLogger(new FakeLogger(), $json),
+            new ErrorReporter(new ErrorLogger(new FakeLogger(), $json), new PiiHeuristic()),
             new FakeUsageLogger(),
             new StoreScopeContext($this->singleStoreManager()),
             new AnswerWidgets(new ErrorLogger(new FakeLogger(), new Json())),
