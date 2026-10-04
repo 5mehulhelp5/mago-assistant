@@ -484,6 +484,8 @@ Magento_Backend::admin
         └── MagoAssistant_Mago::skills_write
 ```
 
+`config_reader` and `config_writer` are not gated by `Magento_Config::config`: every call needs the resource of the section its path belongs to (`Magento_Config::web`, `Magento_Payment::payment`, `Magento_Config::config_admin`, ...), resolved from `system.xml` by `ConfigPathAccess` and checked again on the path `execute()` uses. `Magento_Config::config` only answers a call without a path.
+
 ### How It Works
 
 1. **Every tool is gated by the assistant resources** (`assistant_read` for read actions, `assistant_write` for write actions), enforced per invocation by the tool path.

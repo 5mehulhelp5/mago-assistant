@@ -151,6 +151,23 @@ class ConfigWriterTest extends TestCase
         self::assertStringContainsString('not a setting under Stores > Configuration', $result['error']);
     }
 
+    /**
+     * The path is checked and stored as one string, so stray whitespace or slashes cannot make the
+     * row differ from the path the checks resolved (#223)
+     */
+    #[Test]
+    public function itChecksAndStoresTheSameTrimmedPath(): void
+    {
+        $resource = $this->createMock(ConfigResource::class);
+        $resource->expects(self::once())->method('saveConfig')->with(self::PATH, 'Main Shop', 'default', 0);
+        $writer = $this->writerWith($resource);
+
+        $result = $writer->execute(['path' => ' /' . self::PATH . '/ ', 'value' => 'Main Shop']);
+
+        self::assertTrue($result['success']);
+        self::assertSame('Magento_Config::config_general', $writer->getMagentoAcl(['path' => ' ' . self::PATH . '/']));
+    }
+
     #[Test]
     public function itWritesADesignConfigurationField(): void
     {

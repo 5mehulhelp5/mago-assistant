@@ -37,6 +37,22 @@ final class ToolVerifierTest extends TestCase
         self::assertSame([], $this->messagesWith(CheckStatus::Warning, $checks));
     }
 
+    /**
+     * config_reader and config_writer take their resource from the path, which a check without
+     * input cannot see (#223)
+     */
+    #[Test]
+    public function itNotesThatACheckWithoutInputMissesTheResourceARealCallNeeds(): void
+    {
+        $checks = $this->verifier()->inspect($this->tool(), []);
+
+        self::assertStringContainsString(
+            'pass the call parameters',
+            implode("\n", $this->messagesWith(CheckStatus::Pass, $checks))
+        );
+        self::assertSame([], $this->messagesWith(CheckStatus::Warning, $checks));
+    }
+
     #[Test]
     public function itFailsANameThatProvidersReject(): void
     {

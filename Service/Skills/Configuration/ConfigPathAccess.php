@@ -106,6 +106,19 @@ final class ConfigPathAccess
     }
 
     /**
+     * The path as both config tools check and use it: surrounding whitespace and slashes dropped.
+     * Case is kept, since the row is stored as named; a section id in the wrong case matches no
+     * section and is refused.
+     *
+     * @param mixed $path
+     * @return string
+     */
+    public function normalise(mixed $path): string
+    {
+        return is_string($path) ? trim($path, " \t\n\r\0\x0B/") : '';
+    }
+
+    /**
      * The resource an admin needs for the section a path belongs to.
      *
      * '' when no section the path can be edited in declares one, and the configuration area's own
