@@ -10,6 +10,7 @@ use MageOS\AiBase\Api\AiClientInterface;
 use Magento\Framework\AuthorizationInterface;
 use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Store\Model\StoreManagerInterface;
+use MagoAssistant\Mago\Api\Acl;
 use MagoAssistant\Mago\Api\Config\RepositoryInterface;
 use MagoAssistant\Mago\Logger\DebugLogger;
 use MagoAssistant\Mago\Logger\ErrorLogger;
@@ -39,6 +40,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use MagoAssistant\Mago\Service\Acl\ToolAccess;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakePermissionChecker;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeValidatingTool;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -1046,6 +1048,28 @@ final class ChatServiceTest extends TestCase
         self::assertContains('replace', $events, 'xml-shaped output with no <?xml header is still caught');
         self::assertSame('The config holds two items: a and b.', $result['content']);
         self::assertCount(2, $this->requests);
+    }
+
+    /**
+     * Validation can reach the external service of a per-user tool, so an ungranted call is answered
+     * with its denial and the tool is never asked to validate it.
+     */
+    #[Test]
+    public function anUngrantedPerUserWriteIsDeniedWithoutBeingValidated(): void
+    {
+        $this->grants = ['cms_data' => 'write', 'issue_tracker' => 'write'];
+        $tool = new FakeValidatingTool('issue_tracker', ['known'], Acl::MAGO_PER_USER);
+        $service = $this->buildChatService([$tool]);
+        $this->responses = [[
+            'content' => '',
+            'tool_calls' => [['id' => 'call_1', 'name' => 'issue_tracker', 'input' => ['args' => ['unknown']]]],
+        ]];
+
+        $service->processMessageStreaming([$this->userMessage()], static function (): void {
+        }, null, self::ADMIN_ID);
+
+        self::assertSame(0, $tool->getRefusalChecks());
+        self::assertStringContainsString('you have not been given it', (string)json_encode($this->requests[1]));
     }
 
     #[Test]

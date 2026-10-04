@@ -423,6 +423,11 @@ class ChatService implements ChatServiceInterface
             if (!$tool instanceof ValidatingToolInterface || $tool->isReadOnlyAction($toolCall['input'] ?? [])) {
                 continue;
             }
+            // A denied call is answered with its denial when executed; its validation may already
+            // reach the service the admin was not granted.
+            if ($this->getDenialReason($tool, $toolCall['input'] ?? [], $adminUserId) !== null) {
+                continue;
+            }
             $refusal = $tool->findRefusal($toolCall['input'] ?? []);
             if ($refusal !== null) {
                 $refusals[$toolCall['id']] = $refusal;

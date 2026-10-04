@@ -16,13 +16,21 @@ use MagoAssistant\Mago\Service\Privacy\PiiClass;
  */
 final class FakeValidatingTool implements ToolInterface, ValidatingToolInterface
 {
+    private int $refusalChecks = 0;
+
     /**
      * @param string[] $knownIds
      */
     public function __construct(
         private readonly string $name,
-        private readonly array $knownIds
+        private readonly array $knownIds,
+        private readonly string $acl = 'Magento_Backend::cache'
     ) {
+    }
+
+    public function getRefusalChecks(): int
+    {
+        return $this->refusalChecks;
     }
 
     public function getName(): string
@@ -67,11 +75,12 @@ final class FakeValidatingTool implements ToolInterface, ValidatingToolInterface
 
     public function getMagentoAcl(array $input = []): string
     {
-        return '';
+        return $this->acl;
     }
 
     public function findRefusal(array $input): ?array
     {
+        $this->refusalChecks++;
         $unknownIds = array_values(array_diff($input['args'] ?? [], $this->knownIds));
         if ($unknownIds === []) {
             return null;
