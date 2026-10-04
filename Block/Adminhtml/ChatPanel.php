@@ -200,6 +200,9 @@ class ChatPanel extends Template
         $adminUserId = $this->getAdminUserId();
         $skills = [];
         foreach ($this->toolRegistry->getEnabledTools($adminUserId) as $tool) {
+            if (!$this->toolRegistry->isGranted($tool, $adminUserId)) {
+                continue;
+            }
             $definition = $this->toolRegistry->getToolDefinition($tool, $adminUserId);
             $skills[] = [
                 'name' => $definition['name'],
