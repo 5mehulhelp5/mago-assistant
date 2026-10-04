@@ -8,12 +8,14 @@ namespace MagoAssistant\Mago\Service\Skills\Marketing\CatalogPriceRules;
 
 use Magento\CatalogRule\Model\Rule\Job;
 use MagoAssistant\Mago\Api\Skill\ActionInterface;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
 
 class ApplyRulesAction implements ActionInterface
 {
     public function __construct(
-        private readonly Job $ruleJob
+        private readonly Job $ruleJob,
+        private readonly ErrorReporter $errorReporter
     ) {
     }
 
@@ -73,7 +75,8 @@ class ApplyRulesAction implements ActionInterface
                     . 'especially on stores with large product catalogs.',
             ];
         } catch (\Exception $e) {
-            return ['error' => 'Failed to apply catalog price rules: ' . $e->getMessage()];
+            $error = $this->errorReporter->reportToolFailure('catalog_price_rules apply_rules', $e);
+            return ['error' => 'Failed to apply catalog price rules: ' . $error];
         }
     }
 }
