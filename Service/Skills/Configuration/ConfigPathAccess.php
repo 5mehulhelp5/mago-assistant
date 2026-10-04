@@ -7,6 +7,8 @@ declare(strict_types=1);
 namespace MagoAssistant\Mago\Service\Skills\Configuration;
 
 use Magento\Config\Model\Config\Structure;
+use Magento\Framework\AuthorizationInterface;
+use Magento\Theme\Model\Design\Config\MetadataProviderInterface;
 
 /**
  * What config_reader and config_writer share: the Magento ACL resource that gates a configuration
@@ -39,8 +41,68 @@ final class ConfigPathAccess
     private const BLOCKED_PREFIX = 'payment/';
 
     public function __construct(
-        private readonly Structure $structure
+        private readonly Structure $structure,
+        private readonly AuthorizationInterface $authorization,
+        private readonly MetadataProviderInterface $designConfig
     ) {
+    }
+
+    /**
+     * Whether the admin holds the resource of the section this path belongs to.
+     *
+     * ToolAccess answers the same question before the call, but on the input as the model sent
+     * it; execute() receives it with privacy tokens rehydrated, so a path that only becomes itself
+     * there is checked again on its final value (#222).
+     *
+     * @param string $path
+     * @return bool
+     */
+    public function isAllowed(string $path): bool
+    {
+        $resource = $this->aclResourceFor($path);
+
+        return $resource !== '' && $this->authorization->isAllowed($resource);
+    }
+
+    /**
+     * Whether an admin screen stores this path, the test the configuration save applies before
+     * writing (Save::filterNodes): a path no field declares is a row no admin screen shows or can
+     * change back. Fields count by the path they store under (their config_path when they have
+     * one), a group that clones its fields accepts any field name, and the design section's fields
+     * live in Content > Design > Configuration, not in system.xml.
+     *
+     * @param string $path
+     * @return bool
+     */
+    public function isDeclared(string $path): bool
+    {
+        if (isset($this->structure->getFieldPaths()[$path])) {
+            return true;
+        }
+        foreach ($this->designConfig->get() as $field) {
+            if (($field['path'] ?? null) === $path) {
+                return true;
+            }
+        }
+
+        return $this->isInCloningGroup($path);
+    }
+
+    /**
+     * @param string $path
+     * @return bool
+     */
+    private function isInCloningGroup(string $path): bool
+    {
+        $segments = explode('/', $path);
+        for ($depth = 2; $depth < count($segments); $depth++) {
+            $group = $this->structure->getElement(implode('/', array_slice($segments, 0, $depth)));
+            if (!empty($group?->getData()['clone_fields'])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

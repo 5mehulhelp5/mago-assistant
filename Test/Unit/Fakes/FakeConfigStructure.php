@@ -20,6 +20,9 @@ final class FakeConfigStructure extends Structure
     /** @var array<string, string[]> config path => structure paths of the fields that set it */
     private array $fieldPaths = [];
 
+    /** @var array<string, FakeConfigStructureElement> */
+    private array $groups = [];
+
     // phpcs:ignore Generic.CodeAnalysis.UselessOverridingMethod.Found
     public function __construct()
     {
@@ -44,9 +47,29 @@ final class FakeConfigStructure extends Structure
         return $this;
     }
 
+    /**
+     * A field that stores under its own path
+     */
+    public function withField(string $path): self
+    {
+        $this->fieldPaths[$path][] = $path;
+
+        return $this;
+    }
+
+    /**
+     * A group whose field names are free (clone_fields), "section/group"
+     */
+    public function withCloningGroup(string $path): self
+    {
+        $this->groups[$path] = new FakeConfigStructureElement(['id' => $path, 'clone_fields' => '1']);
+
+        return $this;
+    }
+
     public function getElement($path): FakeConfigStructureElement
     {
-        return $this->sections[$path] ?? new FakeConfigStructureElement(['id' => $path]);
+        return $this->sections[$path] ?? $this->groups[$path] ?? new FakeConfigStructureElement(['id' => $path]);
     }
 
     public function getFieldPaths(): array

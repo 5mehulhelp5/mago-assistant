@@ -7,7 +7,9 @@ declare(strict_types=1);
 namespace MagoAssistant\Mago\Test\Unit\Service\Skills\Configuration;
 
 use MagoAssistant\Mago\Service\Skills\Configuration\ConfigPathAccess;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeConfigStructure;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeDesignConfigMetadata;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -121,8 +123,53 @@ final class ConfigPathAccessTest extends TestCase
         self::assertFalse($this->accessTo(new FakeConfigStructure())->isBlocked('general/store_information/name'));
     }
 
+    #[Test]
+    public function aFieldIsDeclaredByItsOwnPathOrTheConfigPathItStoresUnder(): void
+    {
+        $access = $this->accessTo(
+            (new FakeConfigStructure())
+                ->withField('web/secure/use_in_adminhtml')
+                ->withFieldStoredAt('payment_us/paypal_group/merchant_country', 'paypal/general/merchant_country')
+        );
+
+        self::assertTrue($access->isDeclared('web/secure/use_in_adminhtml'));
+        self::assertTrue($access->isDeclared('paypal/general/merchant_country'));
+        self::assertFalse(
+            $access->isDeclared('payment_us/paypal_group/merchant_country'),
+            'the configuration save stores a field with a config_path under that path, never under its own'
+        );
+        self::assertFalse($access->isDeclared('web/secure/made_up'));
+        self::assertFalse($access->isDeclared('web/secure'));
+    }
+
+    /**
+     * The design section is an empty stub in system.xml; its fields are edited under Content >
+     * Design > Configuration
+     */
+    #[Test]
+    public function aDesignConfigurationFieldIsDeclared(): void
+    {
+        $access = new ConfigPathAccess(
+            new FakeConfigStructure(),
+            new FakeAuthorization(),
+            new FakeDesignConfigMetadata(['design/footer/copyright'])
+        );
+
+        self::assertTrue($access->isDeclared('design/footer/copyright'));
+        self::assertFalse($access->isDeclared('design/footer/made_up'));
+    }
+
+    #[Test]
+    public function aNestedGroupThatClonesItsFieldsAcceptsAnyFieldName(): void
+    {
+        $access = $this->accessTo((new FakeConfigStructure())->withCloningGroup('google/gtag/analytics4'));
+
+        self::assertTrue($access->isDeclared('google/gtag/analytics4/any_name'));
+        self::assertFalse($access->isDeclared('google/gtag/other/any_name'));
+    }
+
     private function accessTo(FakeConfigStructure $structure): ConfigPathAccess
     {
-        return new ConfigPathAccess($structure);
+        return new ConfigPathAccess($structure, new FakeAuthorization(), new FakeDesignConfigMetadata());
     }
 }

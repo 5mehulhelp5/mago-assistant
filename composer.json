@@ -16,6 +16,7 @@
         "magento/module-cms": "*",
         "magento/module-config": "*",
         "magento/module-store": "*",
+        "magento/module-theme": "*",
         "magento/module-cron": "*"
     },
     "suggest": {
