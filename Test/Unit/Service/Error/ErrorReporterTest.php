@@ -67,7 +67,8 @@ final class ErrorReporterTest extends TestCase
 
         $logged = implode("\n", $this->logger->getMessages());
         self::assertStringContainsString('caused by RuntimeException: cURL error 6', $logged);
-        self::assertStringContainsString('Bearer [redacted]', $logged);
+        self::assertStringNotContainsString('abc.def-123', $logged);
+        self::assertStringContainsString('Authorization: [redacted]', $logged);
     }
 
     /**
@@ -120,6 +121,64 @@ final class ErrorReporterTest extends TestCase
         $message = $this->reporter->reportToolFailure('Tool Error cms_page', $wrapped);
 
         self::assertStringNotContainsString('INSERT INTO', $message);
+        self::assertStringContainsString('Reference:', $message);
+    }
+
+    /**
+     * An HTTP client can also quote the request headers it sent (#225)
+     */
+    #[Test]
+    public function theLogRedactsCredentialsInHeaderForm(): void
+    {
+        $this->reporter->log('AddonFeed', new \RuntimeException(
+            'Request failed. Headers: x-api-key: abc123; Authorization: Basic dXNlcjpwYXNz, Accept: json'
+        ));
+
+        $logged = implode("\n", $this->logger->getMessages());
+        self::assertStringNotContainsString('abc123', $logged);
+        self::assertStringNotContainsString('dXNlcjpwYXNz', $logged);
+        self::assertStringContainsString('x-api-key: [redacted]', $logged);
+        self::assertStringContainsString('Accept: json', $logged);
+    }
+
+    #[Test]
+    public function theLogRedactsJsonQuotedHeadersButNotProse(): void
+    {
+        $this->reporter->log('AddonFeed', new \RuntimeException(
+            '{"x-api-key":"abc123def","api_key": "zyx987wvu"} {"x-api-key": ["qrs456tuv"]} '
+            . "'Authorization': 'Basic mno321pqr' Missing authorization: see the docs"
+        ));
+
+        $logged = implode("\n", $this->logger->getMessages());
+        self::assertStringNotContainsString('abc123def', $logged);
+        self::assertStringNotContainsString('zyx987wvu', $logged);
+        self::assertStringNotContainsString('qrs456tuv', $logged);
+        self::assertStringNotContainsString('mno321pqr', $logged);
+        self::assertStringContainsString('Missing authorization: see the docs', $logged);
+    }
+
+    /**
+     * Mago's own "No store view is available." quotes nothing and still reaches the admin (#225)
+     */
+    #[Test]
+    public function aNoSuchEntityWithoutParametersPassesAsWritten(): void
+    {
+        $exception = new NoSuchEntityException(__('No store view is available.'));
+
+        self::assertSame('No store view is available.', $this->reporter->report('ChatManagement', $exception));
+    }
+
+    /**
+     * Core puts the value it looked up in "No such entity with %fieldName = %fieldValue" (#225)
+     */
+    #[Test]
+    public function aNoSuchEntityThatQuotesTheValueItLookedUpIsReportedByReference(): void
+    {
+        $exception = NoSuchEntityException::singleField('email', 'jan@example.test');
+
+        $message = $this->reporter->report('ChatManagement', $exception);
+
+        self::assertStringNotContainsString('jan@example.test', $message);
         self::assertStringContainsString('Reference:', $message);
     }
 }

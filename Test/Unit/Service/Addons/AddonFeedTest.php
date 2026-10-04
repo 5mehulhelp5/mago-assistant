@@ -12,6 +12,8 @@ use Magento\Framework\Serialize\Serializer\Json;
 use MagoAssistant\Mago\Logger\ErrorLogger;
 use MagoAssistant\Mago\Service\Addons\AddonFeed;
 use MagoAssistant\Mago\Service\Addons\FeedClient;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
+use MagoAssistant\Mago\Service\Privacy\PiiHeuristic;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeConfigRepository;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeInstalledPackages;
 use PHPUnit\Framework\Attributes\Test;
@@ -55,7 +57,12 @@ final class AddonFeedTest extends TestCase
         $curl->method('getStatus')->willReturn($status);
 
         $config ??= new FakeConfigRepository();
-        $client = new FeedClient($curl, new Json(), $this->createStub(ErrorLogger::class));
+        $client = new FeedClient(
+            $curl,
+            new Json(),
+            $this->createStub(ErrorLogger::class),
+            new ErrorReporter($this->createStub(ErrorLogger::class), new PiiHeuristic())
+        );
 
         return new AddonFeed(
             $this->cache(),
@@ -171,7 +178,12 @@ final class AddonFeedTest extends TestCase
         $feed = new AddonFeed(
             $this->cache(),
             new Json(),
-            new FeedClient($curl, new Json(), $this->createStub(ErrorLogger::class)),
+            new FeedClient(
+                $curl,
+                new Json(),
+                $this->createStub(ErrorLogger::class),
+                new ErrorReporter($this->createStub(ErrorLogger::class), new PiiHeuristic())
+            ),
             $config,
             new FakeInstalledPackages()
         );

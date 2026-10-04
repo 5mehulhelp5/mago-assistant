@@ -18,6 +18,8 @@ use MagoAssistant\Mago\Api\Data\IndexerResultInterfaceFactory;
 use MagoAssistant\Mago\Logger\ErrorLogger;
 use MagoAssistant\Mago\Model\Data\IndexerResult;
 use MagoAssistant\Mago\Model\WebApi\IndexerManagement;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
+use MagoAssistant\Mago\Service\Privacy\PiiHeuristic;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeConfigRepository;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeLogger;
 use PHPUnit\Framework\Attributes\Test;
@@ -49,10 +51,12 @@ final class IndexerManagementTest extends TestCase
             ['catalogsearch_fulltext' => 'failed', 'catalog_product_price' => 'rebuilt'],
             $this->results($result)
         );
-        self::assertSame(
-            ['IndexerManagement::rebuild catalogsearch_fulltext: OpenSearch is down'],
-            $this->logger->getMessages()
+        self::assertCount(1, $this->logger->getMessages());
+        self::assertStringStartsWith(
+            'IndexerManagement::rebuild catalogsearch_fulltext: [',
+            $this->logger->getMessages()[0]
         );
+        self::assertStringContainsString('OpenSearch is down', $this->logger->getMessages()[0]);
     }
 
     #[Test]
@@ -103,7 +107,7 @@ final class IndexerManagementTest extends TestCase
             $config,
             $this->makeSharedIndexValid,
             $resultFactory,
-            new ErrorLogger($this->logger, new Json()),
+            new ErrorReporter(new ErrorLogger($this->logger, new Json()), new PiiHeuristic()),
             $this->createMock(UserContextInterface::class),
             (new FakeConfigRepository())->withReindexAllowed(true)
         );

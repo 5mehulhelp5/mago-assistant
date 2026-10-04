@@ -10,6 +10,8 @@ use Magento\Framework\HTTP\Client\Curl;
 use Magento\Framework\Serialize\Serializer\Json;
 use MagoAssistant\Mago\Logger\ErrorLogger;
 use MagoAssistant\Mago\Service\Addons\FeedClient;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
+use MagoAssistant\Mago\Service\Privacy\PiiHeuristic;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -21,7 +23,12 @@ final class FeedClientTest extends TestCase
         $curl->method('getBody')->willReturn($body);
         $curl->method('getStatus')->willReturn($status);
 
-        return new FeedClient($curl, new Json(), $this->createStub(ErrorLogger::class));
+        return new FeedClient(
+            $curl,
+            new Json(),
+            $this->createStub(ErrorLogger::class),
+            new ErrorReporter($this->createStub(ErrorLogger::class), new PiiHeuristic())
+        );
     }
 
     #[Test]

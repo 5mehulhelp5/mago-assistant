@@ -9,8 +9,8 @@ namespace MagoAssistant\Mago\Service\Docs;
 use Magento\Framework\FlagManager;
 use Magento\Framework\Lock\LockManagerInterface;
 use MagoAssistant\Mago\Api\Config\RepositoryInterface as ConfigRepository;
-use MagoAssistant\Mago\Logger\ErrorLogger;
 use MagoAssistant\Mago\Model\Doc\Repository as DocRepository;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 
 class DocsSyncService
 {
@@ -26,7 +26,7 @@ class DocsSyncService
         private readonly ExlMarkdownNormalizer $normalizer,
         private readonly DocRepository $docRepository,
         private readonly FlagManager $flagManager,
-        private readonly ErrorLogger $errorLogger,
+        private readonly ErrorReporter $errorReporter,
         private readonly LockManagerInterface $lockManager
     ) {
     }
@@ -48,7 +48,7 @@ class DocsSyncService
         try {
             $locked = $this->lockManager->lock(self::LOCK_NAME, 0);
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('DocsSync', $e->getMessage());
+            $this->errorReporter->log('DocsSync', $e);
             return ['error' => $e->getMessage()];
         }
         if (!$locked) {
@@ -147,8 +147,10 @@ class DocsSyncService
 
             return ['indexed' => count($rows), 'sha' => $sha];
         } catch (\Throwable $e) {
-            $this->flagManager->saveFlag(self::FLAG_ERROR, $e->getMessage());
-            $this->errorLogger->addLog('DocsSync', $e->getMessage());
+            // The CLI and cron answer the server operator with the message; the stored flag only
+            // points at the log entry.
+            $reference = $this->errorReporter->log('DocsSync', $e);
+            $this->flagManager->saveFlag(self::FLAG_ERROR, 'See var/log/mago-error.log, reference ' . $reference);
             return ['error' => $e->getMessage()];
         }
     }

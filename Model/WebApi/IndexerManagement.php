@@ -19,7 +19,7 @@ use MagoAssistant\Mago\Api\Config\RepositoryInterface as ConfigRepository;
 use MagoAssistant\Mago\Api\Data\IndexerResultInterface;
 use MagoAssistant\Mago\Api\Data\IndexerResultInterfaceFactory;
 use MagoAssistant\Mago\Api\WebApi\IndexerManagementInterface;
-use MagoAssistant\Mago\Logger\ErrorLogger;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 
 class IndexerManagement implements IndexerManagementInterface
 {
@@ -33,7 +33,7 @@ class IndexerManagement implements IndexerManagementInterface
         private readonly ConfigInterface $config,
         private readonly MakeSharedIndexValid $makeSharedIndexValid,
         private readonly IndexerResultInterfaceFactory $indexerResultFactory,
-        private readonly ErrorLogger $errorLogger,
+        private readonly ErrorReporter $errorReporter,
         private readonly UserContextInterface $userContext,
         private readonly ConfigRepository $configRepository
     ) {
@@ -108,10 +108,7 @@ class IndexerManagement implements IndexerManagementInterface
                 }
                 $result[] = $this->toResult($indexer, self::RESULT_REBUILT);
             } catch (\Throwable $e) {
-                $this->errorLogger->addLog(
-                    'IndexerManagement::rebuild ' . $indexerId,
-                    $e->getMessage()
-                );
+                $this->errorReporter->log('IndexerManagement::rebuild ' . $indexerId, $e);
                 $result[] = $this->toResult($indexer, self::RESULT_FAILED);
             }
         }

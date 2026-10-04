@@ -10,7 +10,7 @@ use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\Adapter\DuplicateException;
 use MagoAssistant\Mago\Api\Privacy\VaultStorageInterface;
 use MagoAssistant\Mago\Logger\DebugLogger;
-use MagoAssistant\Mago\Logger\ErrorLogger;
+use MagoAssistant\Mago\Service\Error\ErrorReporter;
 
 /**
  * Stores the token vault in mago_pii_token. Every DB access is guarded: before setup:upgrade has
@@ -23,7 +23,7 @@ class DbVaultStorage implements VaultStorageInterface
 
     public function __construct(
         private readonly ResourceConnection $resourceConnection,
-        private readonly ErrorLogger $errorLogger,
+        private readonly ErrorReporter $errorReporter,
         private readonly DebugLogger $debugLogger,
         private readonly VaultValueCipher $cipher
     ) {
@@ -45,7 +45,7 @@ class DbVaultStorage implements VaultStorageInterface
 
             return $rows;
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('PII vault load', $e->getMessage());
+            $this->errorReporter->log('PII vault load', $e);
 
             return [];
         }
@@ -72,7 +72,7 @@ class DbVaultStorage implements VaultStorageInterface
                 'token' => $token,
             ]);
         } catch (\Throwable $e) {
-            $this->errorLogger->addLog('PII vault persist', $e->getMessage());
+            $this->errorReporter->log('PII vault persist', $e);
         }
     }
 }
