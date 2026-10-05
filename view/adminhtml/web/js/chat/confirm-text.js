@@ -23,12 +23,6 @@ define([], function () {
         var fieldCountText = translator.fieldCountText;
         var escapeForMarkdown = text.escapeForMarkdown;
         var codeSpan = text.codeSpan;
-        var previewValue = text.previewValue;
-
-    // A translation pass can touch ten to thirty fields (task 010); thirty full "Label: old → new"
-    // lines is a wall of text, not a review. Showing the first few and summarizing the rest keeps
-    // the prompt something an administrator can actually read before confirming.
-    var MAX_CONFIRM_FIELD_LINES = 10;
 
     // The old value is deliberately not part of the tool input (task 006): looking it up here,
     // through form-bridge, shows what is on the form right now rather than replaying a value the
@@ -66,9 +60,22 @@ define([], function () {
 
     function formatFieldChangeLine(change, live) {
         var field = findLiveField(change.path, live);
-        if (!field) return escapeForMarkdown(change.path) + ': ' + codeSpan(previewValue(change.value));
-        var previous = field.redacted ? t('(hidden)') : codeSpan(previewValue(field.value));
-        return escapeForMarkdown(field.label) + ': ' + previous + ' → ' + codeSpan(previewValue(change.value));
+        if (!field) return escapeForMarkdown(change.path) + ': ' + codeSpan(change.value);
+        var previous = field.redacted ? t('(hidden)') : codeSpan(field.value);
+        return escapeForMarkdown(field.label) + ': ' + previous + ' → ' + codeSpan(change.value);
+    }
+
+    // The same "Label: old → new" as data rather than markdown, for a card that sets every value
+    // with textContent. Labels and values are raw here: escaping is the builder's job.
+    function describeFieldChange(change, live) {
+        var field = findLiveField(change.path, live);
+        if (!field) return {label: String(change.path), isFromUnknown: true, to: change.value};
+        return {label: String(field.label), from: field.value, isFromHidden: !!field.redacted, to: change.value};
+    }
+
+    function describeWriteFieldChanges(tool) {
+        var live = liveForm();
+        return ((tool.input || {}).changes || []).map(function(change) { return describeFieldChange(change, live); });
     }
 
     // The heading says where the values go: the form on screen, another entity, or a New form,
@@ -93,22 +100,28 @@ define([], function () {
             + '\n\n**' + notes.join(' ') + '**\n';
     }
 
+    // Every field is listed: a write the admin approves must not hide any of what it writes, so a
+    // long card is the price of a complete one (the panel folds long values, never whole lines).
     function formatWriteFieldsConfirmMessage(tool) {
         var input = tool.input || {};
         var changes = input.changes || [];
         // One snapshot for the whole card; the heading and every line share it.
         var live = liveForm();
-        var visibleChanges = changes.slice(0, MAX_CONFIRM_FIELD_LINES);
-        var remaining = changes.length - visibleChanges.length;
-        var lines = visibleChanges.map(function(change) { return formatFieldChangeLine(change, live); })
-            .map(function(l) { return '- ' + l; });
-
-        if (remaining > 0) {
-            lines.push('- ' + (remaining === 1 ? t('...and %1 more field.', remaining) : t('...and %1 more fields.', remaining)));
-        }
+        var lines = changes.map(function(change) { return '- ' + formatFieldChangeLine(change, live); });
 
         return formatWriteFieldsHeading(input, changes, live) + '\n' + lines.join('\n')
-            + '\n\n' + t('Nothing is saved until you click Save on the page.');
+            + '\n\n' + formatWriteFieldsFooter();
+    }
+
+    // The sentence above the field list on the panel's form-write card, as markdown.
+    function formatWriteFieldsIntro(tool) {
+        var input = tool.input || {};
+        return t('I want to perform the following action:') + '\n\n'
+            + formatWriteFieldsHeading(input, input.changes || []);
+    }
+
+    function formatWriteFieldsFooter() {
+        return t('Nothing is saved until you click Save on the page.');
     }
 
     function formatToolConfirmMessage(tool) {
@@ -181,6 +194,9 @@ define([], function () {
             isNavigatingWrite: isNavigatingWrite,
             describeLiveForm: describeLiveForm,
             formatFieldChangeLine: formatFieldChangeLine,
+            describeWriteFieldChanges: describeWriteFieldChanges,
+            formatWriteFieldsIntro: formatWriteFieldsIntro,
+            formatWriteFieldsFooter: formatWriteFieldsFooter,
             formatWriteFieldsHeading: formatWriteFieldsHeading,
             formatWriteFieldsConfirmMessage: formatWriteFieldsConfirmMessage,
             formatToolConfirmMessage: formatToolConfirmMessage,
