@@ -12,7 +12,7 @@ const INTERACTION_TIMEOUT_MS = 5000;
 
 /* Below the suite's 25s test timeout (playwright.config.ts) so a stuck bind still fails with an
    explaining message instead of surfacing as a bare test timeout, but with enough headroom that
-   a busy dev instance loading chat-panel.js under require(['marked'], ...) does not trip it. */
+   a busy dev instance loading chat-panel.js and its markdown renderer does not trip it. */
 const TOGGLE_BIND_TIMEOUT_MS = 20000;
 
 /**
@@ -54,6 +54,11 @@ const LISTING_RECIPES: Record<string, ListingRecipe> = {
   'mago/skills': {
     menuHrefContains: '/mago/skills/',
     listingNamespace: 'mago_skills_listing',
+  },
+  'mago/conversations': {
+    menuHrefContains: '/mago/conversations/',
+    listingNamespace: 'mago_conversations_listing',
+    actionKey: 'view',
   },
   'mago/flags': {
     menuHrefContains: '/mago/flags/',
@@ -308,7 +313,7 @@ export default class ChatPanel {
   }
 
   /**
-   * chat-panel.js is pulled in through require(['marked'], ...), so the toggle exists in
+   * chat-panel.js is pulled in through an async require(), so the toggle exists in
    * the markup well before its click handler is bound. Clicking in that window is a silent
    * no-op, which shows up as the panel never opening.
    */

@@ -306,3 +306,15 @@ const widgetAnswerJson = (json: string): ChatScenario => ({
         },
     ],
 })
+
+/* One answer of plain markdown, the way a prompt-injected model would write it. */
+export const markdownAnswer = (markdown: string): ChatScenario => ({
+    stream: [
+        { event: 'conversation', data: { conversation_id: CONVERSATION_ID, admin_user: 'Tester' } },
+        { event: 'text', data: { text: markdown } },
+        {
+            event: 'done',
+            data: { message_id: MESSAGE_ID, conversation_id: CONVERSATION_ID, pending_confirmation: false },
+        },
+    ],
+})

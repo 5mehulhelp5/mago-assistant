@@ -242,24 +242,13 @@ if (!$conversation) {
 </div>
 
 <script>
-require(['marked'], function(marked) {
-    var Renderer = marked.Renderer;
-    var r = new Renderer();
-    r.link = function(href, title, text) {
-        if (typeof href === 'object' && href !== null) { text = href.text; title = href.title; href = href.href; }
-        var isAdmin = href && (href.indexOf('/admin') !== -1 || href.charAt(0) === '/');
-        var target = isAdmin ? '_self' : '_blank';
-        return '<a href="' + href + '" target="' + target + '" rel="noopener">' + text + '</a>';
-    };
-    r.table = function(token) {
-        var html = Renderer.prototype.table.call(this, token);
-        return '<div class="mago-table-wrap">' + html + '</div>';
-    };
-    marked.use({ renderer: r, gfm: true, breaks: true });
+require(['MagoAssistant_Mago/js/markdown'], function(markdown) {
+    var renderer = markdown.create({tableLabel: '<?= $escaper->escapeJs(__('Table')) ?>'});
 
-    // Re-render all assistant bodies with marked.js
+    // Re-render all assistant bodies the same way the chat panel does: sanitized, links and
+    // images held to the panel's rules, because a stored answer is model output too.
     document.querySelectorAll('.mago-conv-body[data-md]').forEach(function(el) {
-        el.innerHTML = marked.parse(el.getAttribute('data-md'));
+        el.innerHTML = renderer.renderText(el.getAttribute('data-md'));
     });
 
     // Raw / Rendered toggle
@@ -277,7 +266,7 @@ require(['marked'], function(marked) {
                         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     el.innerHTML = '<pre class="mago-conv-raw-pre">' + raw + '</pre>';
                 } else {
-                    el.innerHTML = el.dataset.rendered || marked.parse(el.getAttribute('data-md'));
+                    el.innerHTML = el.dataset.rendered || renderer.renderText(el.getAttribute('data-md'));
                 }
             });
         });

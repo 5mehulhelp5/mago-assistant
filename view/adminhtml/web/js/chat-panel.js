@@ -3,8 +3,9 @@ define([
     'MagoAssistant_Mago/js/chat/i18n',
     'MagoAssistant_Mago/js/chat/navigate-intent',
     'MagoAssistant_Mago/js/chat/session-log',
-    'MagoAssistant_Mago/js/chat/confirm-text'
-], function (text, createTranslator, navigateIntent, createSessionLog, createConfirmText) {
+    'MagoAssistant_Mago/js/chat/confirm-text',
+    'MagoAssistant_Mago/js/markdown'
+], function (text, createTranslator, navigateIntent, createSessionLog, createConfirmText, markdownRenderer) {
     'use strict';
 
     var isPlainObject = text.isPlainObject;
@@ -58,6 +59,17 @@ define([
     var commands = config.commands || [];
     // Widget and skill-card builders (js/mago-ui.js); loaded before this file by panel.phtml.
     var UI = window.MagoUI;
+    // A ```mago fenced block holds a widget spec ({"type": "stat", ...} or a
+    // list of them) and renders as the matching widget. While the block is
+    // still streaming in, the JSON is incomplete and a skeleton holds its place;
+    // a block that is still invalid once the answer is complete renders nothing.
+    var markdown = markdownRenderer.create({
+        tableLabel: t('Table'),
+        renderFencedBlock: function(lang, code) {
+            if (lang !== 'mago' || !UI) return null;
+            return UI.renderJson(code) || (widgetsStreaming ? UI.skeleton().outerHTML : '');
+        }
+    });
     var conversationId = null;
     var busy = false;
     var showingHistory = false;
@@ -845,46 +857,6 @@ define([
         });
     }
 
-    // Model output is attacker-influenceable, so a link target is only ever http(s) or a local
-    // path, with quotes neutralised so it cannot break out of the href attribute.
-    function safeHref(href) {
-        href = String(href || '').replace(/[\n\r]/g, '');
-        if (!/^(https?:\/\/|\/)/i.test(href)) return '#';
-        return href.replace(/"/g, '%22');
-    }
-
-    // Configure marked.js once if available
-    if (window.marked) {
-        var markedRenderer = new marked.Renderer();
-        markedRenderer.link = function(href, title, text) {
-            if (typeof href === 'object' && href !== null) { text = href.text; title = href.title; href = href.href; }
-            href = safeHref(href);
-            var isAdmin = href.indexOf('/admin') !== -1 || href.charAt(0) === '/';
-            var target = isAdmin ? '_self' : '_blank';
-            var titleAttr = title ? ' title="' + String(title).replace(/"/g, '&quot;') + '"' : '';
-            return '<a href="' + href + '" target="' + target + '" rel="noopener"' + titleAttr + '>' + text + '</a>';
-        };
-        markedRenderer.table = function(token) {
-            // Render using the default logic but wrap in a scrollable div, focusable so the
-            // keyboard can scroll a wide table too
-            var html = marked.Renderer.prototype.table.call(this, token);
-            return '<div class="mago-table-wrap" tabindex="0" role="region" aria-label="' + esc(t('Table')) + '">' + html + '</div>';
-        };
-        // A ```mago fenced block holds a widget spec ({"type": "stat", ...} or a
-        // list of them) and renders as the matching widget. While the block is
-        // still streaming in, the JSON is incomplete and a skeleton holds its place;
-        // a block that is still invalid once the answer is complete renders nothing.
-        markedRenderer.code = function(token) {
-            var lang = typeof token === 'object' ? token.lang : arguments[1];
-            if (lang === 'mago' && UI) {
-                var code = typeof token === 'object' ? token.text : token;
-                return UI.renderJson(code) || (widgetsStreaming ? UI.skeleton().outerHTML : '');
-            }
-            return marked.Renderer.prototype.code.apply(this, arguments);
-        };
-        marked.use({ renderer: markedRenderer, gfm: true, breaks: true });
-    }
-
     var widgetsStreaming = false;
 
     // Renders an answer that is still coming in: an incomplete widget block shows a skeleton.
@@ -898,46 +870,16 @@ define([
     }
 
     function renderMd(t) {
-        if (!t) return '';
         // Model output is attacker-influenceable (tool results can carry injected instructions), so
-        // raw HTML must never reach innerHTML: escape first, then let marked render markdown only.
-        return renderEscapedMd(esc(t));
+        // raw HTML in it shows as text, and what marked renders is sanitized before innerHTML.
+        return markdown.renderText(t);
     }
 
     // For sentences the panel builds itself (chat/confirm-text.js). Every value in them that came
     // from the store or the model is already escaped with text.escapeForMarkdown and wrapped in a
     // <code> the panel wrote, so escaping again would show that <code> and every entity as text.
     function renderPanelMd(t) {
-        if (!t) return '';
-        return renderEscapedMd(t);
-    }
-
-    function renderEscapedMd(safe) {
-        if (window.marked) {
-            return marked.parse(safe);
-        }
-        // Fallback: simple regex-based renderer
-        var h = safe;
-        h = h.replace(/```(\w*)\n([\s\S]*?)```/g, function(m,l,c){ return '<pre><code>'+c.trim()+'</code></pre>'; });
-        h = h.replace(/`([^`]+)`/g, '<code>$1</code>');
-        h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-        h = h.replace(/\*(.+?)\*/g, '<em>$1</em>');
-        h = h.replace(/\[([^\]]+)\]\(((?:https?:\/\/[^ )]+|\/[^ )]+))\)/g, function(m, text, url) {
-            url = safeHref(url);
-            var isAdmin = url.indexOf('/admin') !== -1 || url.charAt(0) === '/';
-            var target = isAdmin ? '_self' : '_blank';
-            return '<a href="' + url + '" target="' + target + '" rel="noopener">' + text + '</a>';
-        });
-        h = h.replace(/(https?:\/\/[^ <\n]+)/g, function(m, url, offset) {
-            var before = h.substring(Math.max(0, offset - 6), offset);
-            if (before.indexOf('href=') !== -1 || before.indexOf('">') !== -1) return m;
-            var isAdmin = url.indexOf('/admin') !== -1;
-            var target = isAdmin ? '_self' : '_blank';
-            return '<a href="' + safeHref(url) + '" target="' + target + '" rel="noopener">' + url + '</a>';
-        });
-        h = h.replace(/\n\n/g, '</p><p>');
-        h = h.replace(/\n/g, '<br>');
-        return '<p>' + h + '</p>';
+        return markdown.renderMarkup(t);
     }
 
     var lastDateLabel = '';

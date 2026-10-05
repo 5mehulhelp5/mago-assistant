@@ -172,7 +172,7 @@ Build with Mago's helpers, so your widget matches the others and stays safe:
 |---|---|
 | `MagoUI.el(tag, className, children)` | Create an element; `children` can be a string (inserted as text), a node, an array, or `null` |
 | `MagoUI.content(value)` | Turn a spec value into a node; text by default, never HTML from an answer |
-| `MagoUI.safeHref(href)` | The href when it is a web or in-admin URL, otherwise `null` |
+| `MagoUI.safeHref(href)` | The href when it is an http(s) URL or a path on this store, otherwise `null` (`//host` and `/\host` are not paths) |
 | `MagoUI.card(className, children)` | The white, bordered surface widgets sit on |
 | `MagoUI.caption(text, extra)`, `MagoUI.badge(text, tone)`, `MagoUI.icon(name, size, stroke)`, `MagoUI.button(label, className, onClick)`, `MagoUI.chips(items)`, `MagoUI.formatNumber(n)` | The building blocks the built-in widgets use |
 
@@ -199,6 +199,10 @@ the page:
 - It removes inline styles containing `url(`.
 - It parses the result once more in an inert document and scrubs that, so what reaches the page
   is what was checked.
+
+The whole answer, widgets included, then goes through DOMPurify before it reaches the page. That
+pass also drops any `src` that is not on this store, so an image or thumb from another site never
+loads: it would tell that site the admin opened the answer.
 
 A builder that throws is skipped with a console warning; the rest of the answer still renders.
 

@@ -286,15 +286,15 @@ class ConversationView extends Template
         // Italic: *text*
         $html = (string)preg_replace('/(?<!\*)\*([^*]+)\*(?!\*)/', '<em>$1</em>', $html);
 
-        // Markdown links: [text](url)
+        // Markdown links: [text](url), http(s) or a path on this store. "//host" and "/\host" are
+        // off-site links that only look like paths, so the path may not start with either.
         $html = (string)preg_replace_callback(
-            '/\[([^\]]+)\]\(((?:https?:\/\/[^ )]+|\/[^ )]+))\)/',
+            '/\[([^\]]+)\]\(((?:https?:\/\/[^ )]+|\/(?![\/\\\\\s])[^ )]+))\)/',
             function ($m) {
                 $linkText = $m[1];
                 $url = str_replace(["\n", "\r"], '', $m[2]);
-                $isAdmin = str_contains($url, '/admin') || str_starts_with($url, '/');
-                $target = $isAdmin ? '_self' : '_blank';
-                return '<a href="' . $url . '" target="' . $target . '" rel="noopener">'
+                $target = str_starts_with($url, '/') ? '_self' : '_blank';
+                return '<a href="' . $url . '" target="' . $target . '" rel="noopener noreferrer">'
                     . $linkText . '</a>';
             },
             $html
@@ -303,7 +303,7 @@ class ConversationView extends Template
         // Bare URLs not already in href
         $html = (string)preg_replace(
             '/(?<!href="|">)(https?:\/\/[^\s<]+)/',
-            '<a href="$1" target="_blank" rel="noopener">$1</a>',
+            '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
             $html
         );
 

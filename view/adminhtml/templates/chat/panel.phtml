@@ -246,8 +246,7 @@ window.MAGO_CONFIG.commands = <?= /* @noEscape */ $block->getCommandsJson() ?>;
 // "mixins" module the panel still loads, just without mixins.
 (function () {
     function loadPanel() {
-        require(['marked', 'MagoAssistant_Mago/js/mago-ui'], function(marked, MagoUI) {
-            window.marked = marked;
+        require(['MagoAssistant_Mago/js/mago-ui'], function(MagoUI) {
             window.MagoUI = MagoUI;
             require(['MagoAssistant_Mago/js/chat-panel']);
         });
