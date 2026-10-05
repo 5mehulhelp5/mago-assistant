@@ -10,7 +10,7 @@ use Magento\Framework\App\Config\Value;
 use Magento\Framework\Exception\ValidatorException;
 use MagoAssistant\Mago\Model\Config\HexColor as HexColorValidator;
 
-final class HexColor extends Value
+class HexColor extends Value
 {
     /**
      * Refuse anything but #RRGGBB, the color is printed unescaped inside <style> blocks.
