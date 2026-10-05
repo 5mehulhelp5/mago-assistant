@@ -23,7 +23,6 @@ trait ReleasesSessionLock
 {
     private function releaseSessionLock(): void
     {
-        // phpcs:ignore Magento2.Security.LanguageConstruct.DirectOutput
         echo ": \n\n";
         flush();
         $this->_session->writeClose();
