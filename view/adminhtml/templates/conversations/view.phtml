@@ -327,8 +327,8 @@ if (!empty($apiCalls)):
                             <button type="button" class="mago-conv-tool-toggle" onclick="magoOpenPayloadModal(<?= (int)$call['entity_id'] ?>)">
                                 <?= $escaper->escapeHtml(__('View')) ?>
                             </button>
-                            <script type="text/json" id="mago-payload-req-<?= (int)$call['entity_id'] ?>"><?= /* @noEscape */ $block->formatJson($call['request_payload'] ?? '') ?></script>
-                            <script type="text/json" id="mago-payload-res-<?= (int)$call['entity_id'] ?>"><?= /* @noEscape */ $block->formatJson($call['response_payload'] ?? '') ?></script>
+                            <script type="text/json" id="mago-payload-req-<?= (int)$call['entity_id'] ?>"><?= /* @noEscape */ $block->formatJsonForScript($call['request_payload'] ?? '') ?></script>
+                            <script type="text/json" id="mago-payload-res-<?= (int)$call['entity_id'] ?>"><?= /* @noEscape */ $block->formatJsonForScript($call['response_payload'] ?? '') ?></script>
                         <?php else: ?>
                             <span style="color:#ccc;font-size:11px;"><?= $escaper->escapeHtml(__('Not recorded')) ?></span>
                         <?php endif; ?>
