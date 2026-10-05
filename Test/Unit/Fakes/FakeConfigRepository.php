@@ -18,6 +18,7 @@ class FakeConfigRepository implements RepositoryInterface
     private int $customerNotificationInterval = 0;
     private bool $answerWidgets = false;    private int $maxResponseTokens = 0;
     private bool $reindexAllowed = false;
+    private bool $isEnabled = true;
 
     public function withMaxToolIterations(int $maxToolIterations): self
     {
@@ -90,9 +91,16 @@ class FakeConfigRepository implements RepositoryInterface
         return '2.4.7';
     }
 
+    public function withEnabled(bool $isEnabled): self
+    {
+        $this->isEnabled = $isEnabled;
+
+        return $this;
+    }
+
     public function isEnabled(?int $storeId = null): bool
     {
-        return true;
+        return $this->isEnabled;
     }
 
     public function getStore(?int $storeId = null): StoreInterface
