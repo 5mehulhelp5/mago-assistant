@@ -71,6 +71,8 @@ final class ChatServiceTest extends TestCase
 
     private ChatService $chatService;
 
+    private FakeLogger $debugLog;
+
     protected function setUp(): void
     {
         $this->grants = ['cms_data' => 'read'];
@@ -86,7 +88,8 @@ final class ChatServiceTest extends TestCase
     private function buildChatService(
         array $extraSkills = [],
         ?PrivacyService $privacy = null,
-        bool $answerWidgets = false
+        bool $answerWidgets = false,
+        bool $isDebugEnabled = false
     ): ChatService
     {
         $authorization = $this->createMock(AuthorizationInterface::class);
@@ -127,12 +130,14 @@ final class ChatServiceTest extends TestCase
         );
 
         $json = new Json();
+        $config = (new FakeConfigRepository())->withMaxToolIterations(5)->withMaxResponseTokens(4000)
+            ->withAnswerWidgets($answerWidgets)->withDebugEnabled($isDebugEnabled);
+        $this->debugLog = new FakeLogger();
         return new ChatService(
-            (new FakeConfigRepository())->withMaxToolIterations(5)->withMaxResponseTokens(4000)
-                ->withAnswerWidgets($answerWidgets),
+            $config,
             $client,
             new ToolRegistry($checker, array_merge([$cmsData], $extraSkills)),
-            new DebugLogger(new FakeLogger(), $json),
+            new DebugLogger($this->debugLog, $json, $config),
             new ErrorReporter(new ErrorLogger(new FakeLogger(), $json), new PiiHeuristic()),
             $this->createMock(UsageLogger::class),
             new StoreScopeContext($this->singleStoreManager()),
@@ -365,6 +370,31 @@ final class ChatServiceTest extends TestCase
         self::assertNotNull($instruction);
         self::assertStringContainsString('Always mention the page count.', $instruction['content']);
         self::assertStringContainsString((new AnswerWidgets(new ErrorLogger(new FakeLogger(), new Json())))->toToolReminder(), $instruction['content']);
+    }
+
+    #[Test]
+    public function theDebugLogRecordsWhichToolRanButNotItsInputOrOutput(): void
+    {
+        $chatService = $this->buildChatService(isDebugEnabled: true);
+        $this->responses = [$this->toolCallResponse('list_pages', ['query' => 'jane@example.com'])];
+
+        $chatService->processMessage([$this->userMessage()], null, self::ADMIN_ID);
+
+        $log = implode("\n", $this->debugLog->getMessages());
+        self::assertStringContainsString('Tool Execute: {"tool":"cms_data","action":"list_pages","input_keys":["action","query"]}', $log);
+        self::assertStringContainsString('Tool Result: {"tool":"cms_data","is_error":false', $log);
+        self::assertStringNotContainsString('jane@example.com', $log);
+        self::assertStringNotContainsString('admin_user_id', $log);
+    }
+
+    #[Test]
+    public function theDebugLogStaysEmptyWhenDebugModeIsOff(): void
+    {
+        $this->responses = [$this->toolCallResponse('list_pages')];
+
+        $this->chatService->processMessage([$this->userMessage()], null, self::ADMIN_ID);
+
+        self::assertSame([], $this->debugLog->getMessages());
     }
 
     #[Test]
