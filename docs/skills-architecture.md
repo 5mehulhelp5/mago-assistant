@@ -232,6 +232,29 @@ Tool output is truncated by the `ChatService` to prevent context window exhausti
 
 When a tool result exceeds the limit, the result sent to the LLM is replaced by an envelope: `_truncated: true`, an `output` field with the first part of the JSON (cut multibyte-safe, may stop mid-value), `total_bytes`/`returned_bytes`, and a `note` instructing the model not to retry the same call but to narrow the query. The cap applies to all three execution paths (plain, streaming, confirmed writes); the debug log still records the full result before truncation.
 
+### Internal API Client
+
+Most tools read and write through `MagoAssistant\Mago\Api\InternalApiClientInterface`, which takes a web API route (`products/{sku}`, `cmsPage`, `order/{id}/refund`) the way the REST API does, but runs it in the PHP process that handles the chat. Nothing goes over HTTP and no admin token is created. Per call, `Service/Api/InProcess/ServiceDispatcher` does what Magento's REST front controller does:
+
+1. **Store:** `StoreEmulation` switches to the store view the call names (default store view without a code, the admin store for `all`) and its locale, and switches back afterwards, also when the call fails.
+2. **Route:** `RouteResolver` matches the path against `webapi.xml` on a request object of its own, so the query, post data and headers of the request running the chat never leak into the call. An exact path wins over a path with parameters (`cmsBlock/search` over `cmsBlock/:blockId`), as in REST.
+3. **ACL:** `AdminAuthorizationFactory` builds the ACL of the admin the tool acts for, whichever area runs the chat (admin panel, the `/V1/mago/chat` REST endpoint, or the command line), and `RouteAuthorizer` requires every resource the route declares. A disabled or unknown admin user is refused.
+4. **Input, call, output:** Magento's `ServiceInputProcessor` builds the service arguments, the ObjectManager resolves the route's service class, and the output goes through a `ServiceOutputProcessor` that applies the same field-level ACL as `webapi_rest` (a product's `stock_item` is left out for a role without `Magento_CatalogInventory::cataloginventory`). The result is JSON round-tripped so it has exactly the shape a REST response decodes to; a scalar answer sits under `result`.
+5. **Errors:** every failure comes back as `['error' => message]`, as before: Magento's untranslated message with its placeholders filled in, `Resource not found` for a 404, and `You do not have permission to access this data` when the admin's role does not allow the route. Exceptions and PHP errors never escape the client.
+
+`postAsync()` queues the call on `async.operations.all` through `AsyncScheduler`, as `POST /rest/async/V1/...` would: same ACL check, the bulk is recorded under the admin user, and the topic name comes from `Magento_WebapiAsync`. The route must stay declared in `webapi.xml`, because that is where the topic is generated from.
+
+Some checks Magento only registers for `webapi_rest`. In-process they are replaced so a tool behaves the same in every area:
+
+| REST-only plugin | In-process |
+|------------------|------------|
+| `ProductAuthorization`, `PageAclPlugin` (design fields need `Magento_Catalog::edit_product_design` / `Magento_Cms::save_design`) | `Guard\DesignFieldGuard`, configured in `di.xml` per repository. It refuses any design field sent with a value, so it is a little stricter than the core check, which accepts a value equal to the saved one. |
+| `APISourceItemIndexerPlugin` (reindexes a configurable parent's stock after a child is linked) | `FollowUp\ConfigurableStockIndex` runs the same plugin after `configurable-products/{sku}/child` when the chat does not run in `webapi_rest` and the inventory module is enabled. |
+
+Add your own with a `ServiceCallGuardInterface` (runs before the service) or a `ServiceCallFollowUpInterface` (runs after it succeeded) in the `guards` or `followUps` argument of `ServiceDispatcher`.
+
+Things to keep in mind as a tool author: a call shares the PHP process with the chat, so repositories that cache instances (the product repository, the order registry) can hand back an object loaded earlier in the same turn; pass `forceReload` where you read back what you just wrote. A PHP fatal error inside a service ends the whole chat request, and there is no per-call timeout. In unit tests, use `Test/Unit/Fakes/FakeInternalApiClient` and assert on the calls it recorded.
+
 ### Store Scope Awareness
 
 ```
@@ -249,12 +272,12 @@ Magento configuration and content live on three levels — default (global), web
 |------|----------------|
 | `config_reader` | Validates `scope`/`scope_id` against existing websites and store views. A default-scope read on a multi-store installation also returns `overrides`: every website or store view whose effective value differs from what it inherits (a website override is reported once, not per store view), plus a `note` telling the model to mention them. |
 | `config_writer` | Validates `scope`/`scope_id` before writing; the result and message carry a `scope_label` such as `store view "Luma" (id 2, code "luma")`. Its instructions tell the model to ask which scope the user means when the setting could differ per store view. |
-| `cms_data` (`create_page`, `create_block`) | New `store_id` parameter: `0` (default) creates the entity for **all store views**, a store view id restricts it to that view. Implemented by running the internal REST call under `/rest/{store code}/V1/` (`all` for 0), because `PageInterface`/`BlockInterface` expose no store field. Previously new pages and blocks were tied to the default store view. |
+| `cms_data` (`create_page`, `create_block`) | New `store_id` parameter: `0` (default) creates the entity for **all store views**, a store view id restricts it to that view. Implemented by running the internal API call in that store view (store code `all`, the admin store, for 0), as REST does for `/rest/{store code}/V1/`, because `PageInterface`/`BlockInterface` expose no store field. Previously new pages and blocks were tied to the default store view. |
 | `content_generator` | New `store_id` parameter: `0` reads and saves the default (global) values, a store view id reads and saves a store-view-specific version, e.g. a translation. The same id must be used for the generate call and the save call. Earlier versions saved at the admin's current store view (the default store view) instead of globally, so a default-scope save also returns `overridden_in`: store views that still carry their own value and therefore do not show the new text. |
 
-`InternalApiClient::get()/post()/put()/delete()` accept an optional store code for this; without one they keep calling `/rest/V1/`, which Magento serves in its default store view.
+`InternalApiClientInterface::get()/post()/put()/delete()` accept an optional store code for this. The call then runs in that store view (`all` runs it in the admin store), as `/rest/{code}/V1/` would; without one it runs in the default store view, like `/rest/V1/`.
 
-**For tool authors:** inject `StoreScopeContext` when a tool reads or writes anything that Magento stores per scope. Use `validateScope()` for config-style `scope`/`scope_id` pairs, `getRestStoreCode()` when the write goes through the internal REST API, and `describeScope()`/`describeStoreTarget()` to put a human-readable scope label in the result so the assistant can repeat it to the user.
+**For tool authors:** inject `StoreScopeContext` when a tool reads or writes anything that Magento stores per scope. Use `validateScope()` for config-style `scope`/`scope_id` pairs, `getRestStoreCode()` when the write goes through the internal API client, and `describeScope()`/`describeStoreTarget()` to put a human-readable scope label in the result so the assistant can repeat it to the user.
 
 ### Resource Links (Planned frontend rendering)
 
@@ -830,12 +853,6 @@ The existing `ToolInterface` methods map 1:1 to MCP tool definitions, making thi
 | Path | Description | Default |
 |------|-------------|---------|
 | `mago/tools/max_response_tokens` | Estimated token cap per tool result before truncation | `4000` |
-
-#### Internal API
-| Path | Description | Default |
-|------|-------------|---------|
-| `mago/api/internal_url` | Internal URL for REST API calls (Docker/proxy setups) | — (uses store base URL) |
-| `mago/api/internal_ssl_verify` | Verify the TLS certificate on internal REST calls (disable when the certificate cannot match the internal URL host) | `1` |
 
 #### Debug & Logging
 | Path | Description | Default |
