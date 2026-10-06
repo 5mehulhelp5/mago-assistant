@@ -7,7 +7,6 @@ declare(strict_types=1);
 namespace MagoAssistant\Mago\Test\Unit\Service\Skills\Sales\OrderManager;
 
 use Magento\Framework\Stdlib\DateTime\DateTime;
-use MagoAssistant\Mago\Service\Api\InternalApiClient;
 use MagoAssistant\Mago\Service\Skills\Sales\OrderManager\CustomerNotificationGuard;
 use MagoAssistant\Mago\Service\Skills\Sales\OrderManager\OrderResolver;
 use MagoAssistant\Mago\Service\Skills\Sales\OrderManager\ResendConfirmationAction;
@@ -15,6 +14,7 @@ use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeCache;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeConfigRepository;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeInternalApiClient;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeSkill;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -27,11 +27,7 @@ class ResendConfirmationActionTest extends TestCase
     #[Test]
     public function itSendsTheConfirmationOnceAndRefusesTheRepeats(): void
     {
-        $apiClient = $this->createMock(InternalApiClient::class);
-        $apiClient->expects(self::once())
-            ->method('post')
-            ->with('orders/8/emails', [], self::ADMIN_USER_ID)
-            ->willReturn(['result' => true]);
+        $apiClient = (new FakeInternalApiClient())->withResponse(FakeInternalApiClient::POST, 'orders/8/emails', ['result' => true]);
         $action = $this->actionWith($apiClient, new FakeCache());
 
         $results = [];
@@ -39,6 +35,8 @@ class ResendConfirmationActionTest extends TestCase
             $results[] = $action->execute(self::PARAMS, self::ADMIN_USER_ID);
         }
 
+        self::assertCount(1, $apiClient->calls());
+        self::assertSame(self::ADMIN_USER_ID, $apiClient->calls()[0]['admin_user_id']);
         self::assertSame('Order confirmation sent again for order #000000008', $results[0]['message']);
         self::assertStringStartsWith(
             'Not sent: Mago already sent the customer of order #000000008 the confirmation e-mail',
@@ -50,8 +48,7 @@ class ResendConfirmationActionTest extends TestCase
     public function aConfirmationMagentoDidNotSendIsAnErrorAndDoesNotCount(): void
     {
         $cache = new FakeCache();
-        $apiClient = $this->createStub(InternalApiClient::class);
-        $apiClient->method('post')->willReturn(['result' => false]);
+        $apiClient = (new FakeInternalApiClient())->withResponseForEvery(FakeInternalApiClient::POST, ['result' => false]);
 
         $result = $this->actionWith($apiClient, $cache)->execute(self::PARAMS, self::ADMIN_USER_ID);
 
@@ -62,7 +59,7 @@ class ResendConfirmationActionTest extends TestCase
     #[Test]
     public function itAlwaysAsksForTheIrreversibleCard(): void
     {
-        $action = $this->actionWith($this->createStub(InternalApiClient::class), new FakeCache());
+        $action = $this->actionWith(new FakeInternalApiClient(), new FakeCache());
         $skill = new FakeSkill('order_manager', new FakeAuthorization(), ['resend_confirmation' => $action]);
         $input = ['action' => 'resend_confirmation'] + self::PARAMS;
 
@@ -76,7 +73,7 @@ class ResendConfirmationActionTest extends TestCase
         );
     }
 
-    private function actionWith(InternalApiClient $apiClient, FakeCache $cache): ResendConfirmationAction
+    private function actionWith(FakeInternalApiClient $apiClient, FakeCache $cache): ResendConfirmationAction
     {
         $orderResolver = $this->createStub(OrderResolver::class);
         $orderResolver->method('resolve')->willReturn([

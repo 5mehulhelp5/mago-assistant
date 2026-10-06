@@ -9,13 +9,13 @@ namespace MagoAssistant\Mago\Test\Unit\Service\Skills\Sales\OrderManager;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use MagoAssistant\Mago\Api\Skill\ConditionallyIrreversibleActionInterface;
 use MagoAssistant\Mago\Api\Skill\IrreversibleActionInterface;
-use MagoAssistant\Mago\Service\Api\InternalApiClient;
 use MagoAssistant\Mago\Service\Skills\Sales\OrderManager\CreateInvoiceAction;
 use MagoAssistant\Mago\Service\Skills\Sales\OrderManager\CustomerNotificationGuard;
 use MagoAssistant\Mago\Service\Skills\Sales\OrderManager\OrderResolver;
 use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeCache;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeConfigRepository;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeInternalApiClient;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -37,7 +37,7 @@ class CreateInvoiceActionTest extends TestCase
     private function actionWithNotificationGuard(): CreateInvoiceAction
     {
         return new CreateInvoiceAction(
-            (new \ReflectionClass(InternalApiClient::class))->newInstanceWithoutConstructor(),
+            new FakeInternalApiClient(),
             (new \ReflectionClass(SecureAdminUrl::class))->newInstanceWithoutConstructor(),
             (new \ReflectionClass(OrderResolver::class))->newInstanceWithoutConstructor(),
             new CustomerNotificationGuard(

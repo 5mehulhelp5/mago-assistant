@@ -14,10 +14,11 @@ use Magento\Authorization\Model\UserContextInterface;
 use Magento\Framework\UrlInterface;
 use Magento\Store\Model\StoreManagerInterface;
 use MagoAssistant\Mago\Api\Config\RepositoryInterface as ConfigRepositoryInterface;
+use MagoAssistant\Mago\Api\InternalApiClientInterface;
 use MagoAssistant\Mago\Logger\DebugLogger;
 use MagoAssistant\Mago\Logger\ErrorLogger;
 
-class InternalApiClient
+class InternalApiClient implements InternalApiClientInterface
 {
     private array $tokens = [];
 
@@ -30,7 +31,8 @@ class InternalApiClient
         private readonly Json $json,
         private readonly DebugLogger $debugLogger,
         private readonly ErrorLogger $errorLogger,
-        private readonly CleartextTokenWarning $cleartextTokenWarning
+        private readonly CleartextTokenWarning $cleartextTokenWarning,
+        private readonly SearchCriteriaQuery $searchCriteriaQuery
     ) {
     }
 
@@ -135,29 +137,7 @@ class InternalApiClient
         int $currentPage = 1,
         ?array $sortOrders = null
     ): array {
-        $params = [
-            'searchCriteria[pageSize]' => $pageSize,
-            'searchCriteria[currentPage]' => $currentPage,
-        ];
-
-        foreach ($filters as $groupIndex => $filter) {
-            $prefix = "searchCriteria[filter_groups][$groupIndex][filters][0]";
-            $params[$prefix . '[field]'] = $filter['field'];
-            $params[$prefix . '[value]'] = $filter['value'];
-            if (isset($filter['condition_type'])) {
-                $params[$prefix . '[conditionType]'] = $filter['condition_type'];
-            }
-        }
-
-        if ($sortOrders) {
-            foreach ($sortOrders as $index => $sort) {
-                $prefix = "searchCriteria[sortOrders][$index]";
-                $params[$prefix . '[field]'] = $sort['field'];
-                $params[$prefix . '[direction]'] = $sort['direction'] ?? 'ASC';
-            }
-        }
-
-        return $params;
+        return $this->searchCriteriaQuery->build($filters, $pageSize, $currentPage, $sortOrders);
     }
 
     private function getToken(int $adminUserId): string

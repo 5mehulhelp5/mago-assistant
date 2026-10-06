@@ -7,7 +7,7 @@ declare(strict_types=1);
 namespace MagoAssistant\Mago\Service\Skills\Catalog\ProductManagement;
 
 use MagoAssistant\Mago\Api\Skill\ActionInterface;
-use MagoAssistant\Mago\Service\Api\InternalApiClient;
+use MagoAssistant\Mago\Api\InternalApiClientInterface;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
 use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
 
@@ -16,7 +16,7 @@ class CreateProductAction implements ActionInterface
     private const TYPES = ['simple', 'virtual', 'downloadable', 'configurable', 'grouped', 'bundle'];
 
     public function __construct(
-        private readonly InternalApiClient $apiClient,
+        private readonly InternalApiClientInterface $apiClient,
         private readonly SecureAdminUrl $secureAdminUrl
     ) {
     }

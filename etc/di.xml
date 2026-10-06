@@ -4,6 +4,8 @@
     <!-- Config Repository -->
     <preference for="MagoAssistant\Mago\Api\Config\RepositoryInterface" type="MagoAssistant\Mago\Model\Config\Repository"/>
 
+    <preference for="MagoAssistant\Mago\Api\InternalApiClientInterface" type="MagoAssistant\Mago\Service\Api\InternalApiClient"/>
+
     <!-- Chat Service -->
     <preference for="MagoAssistant\Mago\Api\ChatServiceInterface" type="MagoAssistant\Mago\Service\Ai\ChatService"/>
 

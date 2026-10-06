@@ -7,7 +7,6 @@ declare(strict_types=1);
 namespace MagoAssistant\Mago\Test\Unit\Service\Skills\Sales\OrderManager;
 
 use Magento\Framework\Stdlib\DateTime\DateTime;
-use MagoAssistant\Mago\Service\Api\InternalApiClient;
 use MagoAssistant\Mago\Service\Skills\Sales\OrderManager\AddCommentAction;
 use MagoAssistant\Mago\Service\Skills\Sales\OrderManager\CustomerNotificationGuard;
 use MagoAssistant\Mago\Service\Skills\Sales\OrderManager\OrderResolver;
@@ -15,6 +14,7 @@ use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeCache;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeConfigRepository;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeInternalApiClient;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeSkill;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -26,11 +26,7 @@ class AddCommentActionTest extends TestCase
     #[Test]
     public function aRepeatedCustomerEmailIsRefusedWithoutCallingTheApi(): void
     {
-        $apiClient = $this->createMock(InternalApiClient::class);
-        $apiClient->expects(self::once())
-            ->method('post')
-            ->with('orders/8/comments', self::anything(), self::ADMIN_USER_ID)
-            ->willReturn([]);
+        $apiClient = new FakeInternalApiClient();
         $action = $this->actionWith($apiClient, new FakeCache());
 
         $results = [];
@@ -38,6 +34,9 @@ class AddCommentActionTest extends TestCase
             $results[] = $action->execute($this->params(['notify_customer' => true]), self::ADMIN_USER_ID);
         }
 
+        self::assertCount(1, $apiClient->calls());
+        self::assertSame('orders/8/comments', $apiClient->calls()[0]['endpoint']);
+        self::assertSame(self::ADMIN_USER_ID, $apiClient->calls()[0]['admin_user_id']);
         self::assertTrue($results[0]['success']);
         self::assertStringStartsWith('Not sent:', $results[1]['error']);
         self::assertStringStartsWith('Not sent:', $results[99]['error']);
@@ -46,21 +45,22 @@ class AddCommentActionTest extends TestCase
     #[Test]
     public function aCommentWithoutEmailIsNeverLimited(): void
     {
-        $apiClient = $this->createMock(InternalApiClient::class);
-        $apiClient->expects(self::exactly(3))->method('post')->willReturn([]);
+        $apiClient = new FakeInternalApiClient();
         $action = $this->actionWith($apiClient, new FakeCache());
 
         for ($i = 0; $i < 3; $i++) {
             self::assertTrue($action->execute($this->params(), self::ADMIN_USER_ID)['success']);
         }
+
+        self::assertCount(3, $apiClient->callsOf(FakeInternalApiClient::POST));
     }
 
     #[Test]
     public function aFailedSendDoesNotCountAsSent(): void
     {
         $cache = new FakeCache();
-        $apiClient = $this->createStub(InternalApiClient::class);
-        $apiClient->method('post')->willReturn(['error' => 'Unable to send mail. Please try again later.']);
+        $apiClient = (new FakeInternalApiClient())
+            ->withResponseForEvery(FakeInternalApiClient::POST, ['error' => 'Unable to send mail. Please try again later.']);
 
         $this->actionWith($apiClient, $cache)->execute($this->params(['notify_customer' => true]), self::ADMIN_USER_ID);
 
@@ -70,7 +70,7 @@ class AddCommentActionTest extends TestCase
     #[Test]
     public function onlyACommentThatEmailsTheCustomerAsksForTheIrreversibleCard(): void
     {
-        $action = $this->actionWith($this->createStub(InternalApiClient::class), new FakeCache());
+        $action = $this->actionWith(new FakeInternalApiClient(), new FakeCache());
         $skill = new FakeSkill('order_manager', new FakeAuthorization(), ['add_comment' => $action]);
 
         self::assertFalse($skill->isIrreversibleAction(['action' => 'add_comment'] + $this->params()));
@@ -101,7 +101,7 @@ class AddCommentActionTest extends TestCase
         ];
     }
 
-    private function actionWith(InternalApiClient $apiClient, FakeCache $cache): AddCommentAction
+    private function actionWith(FakeInternalApiClient $apiClient, FakeCache $cache): AddCommentAction
     {
         $orderResolver = $this->createStub(OrderResolver::class);
         $orderResolver->method('resolve')->willReturn([
