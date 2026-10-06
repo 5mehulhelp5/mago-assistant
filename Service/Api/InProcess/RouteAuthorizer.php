@@ -28,7 +28,11 @@ class RouteAuthorizer
             fn (string $resource): bool => !$this->isAllowed($resource, $authorization)
         );
 
-        if ($route->aclResources === [] || $deniedResources !== []) {
+        if ($route->aclResources === []) {
+            throw new AccessDeniedException(__('The route has no ACL resource an admin user can be allowed.'));
+        }
+
+        if ($deniedResources !== []) {
             throw new AccessDeniedException(__(
                 'The admin user is not allowed to use %1.',
                 implode(', ', $deniedResources)

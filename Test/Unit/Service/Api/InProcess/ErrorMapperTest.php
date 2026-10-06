@@ -47,11 +47,17 @@ final class ErrorMapperTest extends TestCase
     }
 
     #[Test]
-    public function itReportsAnAclDenialAsMissingPermission(): void
+    public function itNamesTheMissingAclResourceWhenTheRouteIsDenied(): void
     {
-        $error = $this->errorMapper->toError(new AccessDeniedException(__('The admin user is not allowed to use %1.', 'x')));
+        $error = $this->errorMapper->toError(
+            new AccessDeniedException(__('The admin user is not allowed to use %1.', 'Magento_Sales::actions_cancel'))
+        );
 
-        self::assertSame(['error' => 'You do not have permission to access this data'], $error);
+        self::assertSame(
+            ['error' => 'You do not have permission to access this data. '
+                . 'The admin user is not allowed to use Magento_Sales::actions_cancel.'],
+            $error
+        );
     }
 
     #[Test]
@@ -117,6 +123,20 @@ final class ErrorMapperTest extends TestCase
         $error = $this->errorMapper->toError(new \TypeError('Argument #1 ($id) must be of type int, string given'));
 
         self::assertSame(['error' => 'Argument #1 ($id) must be of type int, string given'], $error);
+    }
+
+    #[Test]
+    public function itLeavesTheServerPathOutOfAnInputThatDoesNotFitTheService(): void
+    {
+        $error = $this->errorMapper->toError(new \TypeError(
+            'Magento\Sales\Model\OrderRepository::get(): Argument #1 ($id) must be of type int, string given, '
+            . 'called in /var/www/html/vendor/magento/framework/Webapi/ServiceInputProcessor.php on line 210'
+        ));
+
+        self::assertSame(
+            ['error' => 'Magento\Sales\Model\OrderRepository::get(): Argument #1 ($id) must be of type int, string given'],
+            $error
+        );
     }
 
     #[Test]

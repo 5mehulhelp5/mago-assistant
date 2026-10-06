@@ -18,6 +18,7 @@ class ErrorMapper
 {
     public const PERMISSION_DENIED = 'You do not have permission to access this data';
     public const NOT_FOUND = 'Resource not found';
+    private const CALL_SITE_PATTERN = '/, called in .+ on line \d+$/s';
 
     public function __construct(
         private readonly ExceptionMaskerInterface $exceptionMasker
@@ -29,20 +30,40 @@ class ErrorMapper
      */
     public function toError(\Throwable $throwable): array
     {
+        if ($throwable instanceof AccessDeniedException) {
+            return ['error' => $this->getAccessDeniedMessage($throwable)];
+        }
+
         return ['error' => $this->getMessage($this->exceptionMasker->mask($this->toException($throwable)))];
     }
 
     /**
+     * A refusal of our own names what the admin user lacks, such as the ACL resource of the route, so
+     * the model can tell the admin which permission is missing. Masking would turn it into a bare 401.
+     */
+    private function getAccessDeniedMessage(AccessDeniedException $exception): string
+    {
+        return self::PERMISSION_DENIED . '. '
+            . $this->renderMessage($exception->getRawMessage(), $exception->getParameters());
+    }
+
+    /**
      * A TypeError means the input did not fit the service method, which REST answers with a 400 and
-     * the PHP message. Any other Error is a crash, masked like every unexpected exception.
+     * the PHP message. Its "called in <file> on line <n>" is cut off, so no server path reaches the
+     * tool result. Any other Error is a crash, masked like every unexpected exception.
      */
     private function toException(\Throwable $throwable): \Exception
     {
         return match (true) {
             $throwable instanceof \Exception => $throwable,
-            $throwable instanceof \TypeError => new WebapiException(new Phrase($throwable->getMessage())),
+            $throwable instanceof \TypeError => new WebapiException(new Phrase($this->withoutCallSite($throwable))),
             default => new \RuntimeException($throwable->getMessage(), (int)$throwable->getCode(), $throwable),
         };
+    }
+
+    private function withoutCallSite(\TypeError $typeError): string
+    {
+        return (string)preg_replace(self::CALL_SITE_PATTERN, '', $typeError->getMessage());
     }
 
     /**

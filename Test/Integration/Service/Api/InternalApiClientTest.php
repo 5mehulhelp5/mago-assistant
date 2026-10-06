@@ -12,16 +12,20 @@ use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\ObjectManagerInterface;
 use Magento\User\Model\ResourceModel\User\CollectionFactory as UserCollectionFactory;
 use MagoAssistant\Mago\Service\Api\InProcess\ApiCall;
+use MagoAssistant\Mago\Service\Api\InProcess\AsyncQueueInterface;
+use MagoAssistant\Mago\Service\Api\InProcess\ConnectionTransaction;
+use MagoAssistant\Mago\Service\Api\InProcess\ConnectionTransactionInterface;
 use MagoAssistant\Mago\Service\Api\InProcess\ExceptionMasker;
 use MagoAssistant\Mago\Service\Api\InProcess\ExceptionMaskerInterface;
 use MagoAssistant\Mago\Service\Api\InProcess\RouteResolver;
+use MagoAssistant\Mago\Service\Api\InProcess\WebapiAsyncQueue;
 use MagoAssistant\Mago\Service\Api\InternalApiClient;
 use MagoAssistant\Mago\Test\Integration\MagentoObjectManager;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Runs real routes in-process against the installed store. The one preference the client needs is
+ * Runs real routes in-process against the installed store. The preferences the client needs are
  * set here too, so the suite also runs from a worktree whose di.xml the store does not load. Writes
  * happen inside a transaction that is rolled back.
  */
@@ -35,7 +39,11 @@ final class InternalApiClientTest extends TestCase
     {
         $this->objectManager = MagentoObjectManager::get();
         $this->objectManager->configure([
-            'preferences' => [ExceptionMaskerInterface::class => ExceptionMasker::class],
+            'preferences' => [
+                ExceptionMaskerInterface::class => ExceptionMasker::class,
+                ConnectionTransactionInterface::class => ConnectionTransaction::class,
+                AsyncQueueInterface::class => WebapiAsyncQueue::class,
+            ],
         ]);
         $this->client = $this->objectManager->create(InternalApiClient::class);
         $this->adminUserId = $this->getActiveAdminUserId();
@@ -111,7 +119,7 @@ final class InternalApiClientTest extends TestCase
     public function itRefusesAnAdminUserThatDoesNotExist(): void
     {
         self::assertSame(
-            ['error' => 'You do not have permission to access this data'],
+            ['error' => 'You do not have permission to access this data. The admin user is not active.'],
             $this->client->get('store/websites', [], 999999)
         );
     }

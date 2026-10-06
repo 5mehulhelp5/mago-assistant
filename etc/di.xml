@@ -10,6 +10,14 @@
     -->
     <preference for="MagoAssistant\Mago\Api\InternalApiClientInterface" type="MagoAssistant\Mago\Service\Api\InternalApiClient"/>
     <preference for="MagoAssistant\Mago\Service\Api\InProcess\ExceptionMaskerInterface" type="MagoAssistant\Mago\Service\Api\InProcess\ExceptionMasker"/>
+    <preference for="MagoAssistant\Mago\Service\Api\InProcess\ConnectionTransactionInterface" type="MagoAssistant\Mago\Service\Api\InProcess\ConnectionTransaction"/>
+    <preference for="MagoAssistant\Mago\Service\Api\InProcess\AsyncQueueInterface" type="MagoAssistant\Mago\Service\Api\InProcess\WebapiAsyncQueue"/>
+    <!-- Only postAsync() queues; every other call must not build the async scheduler -->
+    <type name="MagoAssistant\Mago\Service\Api\InternalApiClient">
+        <arguments>
+            <argument name="asyncScheduler" xsi:type="object">MagoAssistant\Mago\Service\Api\InProcess\AsyncScheduler\Proxy</argument>
+        </arguments>
+    </type>
     <type name="MagoAssistant\Mago\Service\Api\InProcess\ServiceDispatcher">
         <arguments>
             <argument name="guards" xsi:type="array">

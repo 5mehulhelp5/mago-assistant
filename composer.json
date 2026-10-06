@@ -18,14 +18,14 @@
         "magento/module-store": "*",
         "magento/module-theme": "*",
         "magento/module-cron": "*",
-        "magento/module-asynchronous-operations": "*",
         "magento/module-authorization": "*",
         "magento/module-integration": "*",
         "magento/module-user": "*",
-        "magento/module-webapi": "*",
-        "magento/module-webapi-async": "*"
+        "magento/module-webapi": "*"
     },
     "suggest": {
+        "magento/module-asynchronous-operations": "Queue long-running operations, such as a full reindex, from the assistant",
+        "magento/module-webapi-async": "Queue long-running operations, such as a full reindex, from the assistant",
         "mago-assistant/magento2-issue-tracker": "Add-on for reporting issues to GitHub, Jira, and other project trackers",
         "symfony/ai-azure-platform": "Run the assistant on Azure OpenAI",
         "symfony/ai-deep-seek-platform": "Run the assistant on DeepSeek",

@@ -35,6 +35,7 @@ class ServiceDispatcher
         private readonly ServiceOutputConverter $serviceOutputConverter,
         private readonly ObjectManagerInterface $objectManager,
         private readonly ErrorMapper $errorMapper,
+        private readonly TransactionBoundary $transactionBoundary,
         private readonly array $guards = [],
         private readonly array $followUps = []
     ) {
@@ -46,7 +47,10 @@ class ServiceDispatcher
     public function dispatch(ApiCall $call): array
     {
         try {
-            return $this->storeEmulation->run($call, fn (): array => $this->execute($call));
+            return $this->storeEmulation->run(
+                $call,
+                fn (): array => $this->transactionBoundary->run(fn (): array => $this->execute($call))
+            );
         } catch (\Throwable $throwable) {
             return $this->errorMapper->toError($throwable);
         }

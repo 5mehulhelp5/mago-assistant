@@ -64,6 +64,7 @@ final class RouteAuthorizerTest extends TestCase
     public function itRefusesARouteThatDeclaresNoResources(): void
     {
         $this->expectException(AccessDeniedException::class);
+        $this->expectExceptionMessage('The route has no ACL resource an admin user can be allowed.');
 
         (new RouteAuthorizer())->assertAllowed($this->route([]), new FakeAclAuthorization([]));
     }

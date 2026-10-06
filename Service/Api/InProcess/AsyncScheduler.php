@@ -7,11 +7,9 @@ declare(strict_types=1);
 namespace MagoAssistant\Mago\Service\Api\InProcess;
 
 use Magento\AsynchronousOperations\Api\Data\AsyncResponseInterface;
-use Magento\AsynchronousOperations\Model\MassSchedule;
 use Magento\Framework\Exception\BulkException;
 use Magento\Framework\Reflection\DataObjectProcessor;
 use Magento\Framework\Webapi\ServiceInputProcessor;
-use Magento\WebapiAsync\Model\Config as AsyncConfig;
 
 /**
  * Queues a call on async.operations.all the way POST /rest/async/V1/... does, without that HTTP
@@ -26,11 +24,11 @@ class AsyncScheduler
         private readonly RouteResolver $routeResolver,
         private readonly RouteAuthorizer $routeAuthorizer,
         private readonly ServiceInputProcessor $serviceInputProcessor,
-        private readonly AsyncConfig $asyncConfig,
-        private readonly MassSchedule $massSchedule,
+        private readonly AsyncQueueInterface $asyncQueue,
         private readonly DataObjectProcessor $dataObjectProcessor,
         private readonly OutputNormalizer $outputNormalizer,
-        private readonly ErrorMapper $errorMapper
+        private readonly ErrorMapper $errorMapper,
+        private readonly TransactionBoundary $transactionBoundary
     ) {
     }
 
@@ -40,7 +38,10 @@ class AsyncScheduler
     public function schedule(ApiCall $call): array
     {
         try {
-            return $this->storeEmulation->run($call, fn (): array => $this->publish($call));
+            return $this->storeEmulation->run(
+                $call,
+                fn (): array => $this->transactionBoundary->run(fn (): array => $this->publish($call))
+            );
         } catch (\Throwable $throwable) {
             return $this->errorMapper->toError($throwable);
         }
@@ -51,6 +52,7 @@ class AsyncScheduler
      */
     private function publish(ApiCall $call): array
     {
+        $this->assertQueueAvailable();
         $route = $this->routeResolver->resolve($call);
         $this->routeAuthorizer->assertAllowed($route, $this->authorizationFactory->create($call->adminUserId));
 
@@ -61,9 +63,22 @@ class AsyncScheduler
         );
 
         return $this->outputNormalizer->normalize($this->dataObjectProcessor->buildOutputDataArray(
-            $this->publishMass($this->asyncConfig->getTopicName($route->routePath, $call->httpMethod), $arguments, $call),
+            $this->publishMass($this->asyncQueue->getTopicName($route->routePath, $call->httpMethod), $arguments, $call),
             AsyncResponseInterface::class
         ));
+    }
+
+    /**
+     * @throws AsyncQueueUnavailableException
+     */
+    private function assertQueueAvailable(): void
+    {
+        if (!$this->asyncQueue->isAvailable()) {
+            throw new AsyncQueueUnavailableException(__(
+                'Queuing this operation needs the Magento_WebapiAsync and Magento_AsynchronousOperations modules, '
+                . 'which are not enabled in this store.'
+            ));
+        }
     }
 
     /**
@@ -72,7 +87,7 @@ class AsyncScheduler
     private function publishMass(string $topicName, array $arguments, ApiCall $call): AsyncResponseInterface
     {
         try {
-            return $this->massSchedule->publishMass($topicName, [$arguments], null, (string)$call->adminUserId);
+            return $this->asyncQueue->publish($topicName, $arguments, $call->adminUserId);
         } catch (BulkException $bulkException) {
             return $this->getRejectedResponse($bulkException);
         }
