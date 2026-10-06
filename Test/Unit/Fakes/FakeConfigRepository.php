@@ -20,6 +20,7 @@ class FakeConfigRepository implements RepositoryInterface
     private bool $reindexAllowed = false;
     private bool $isDebugEnabled = false;
     private int $debugEnabledReads = 0;
+    private bool $isEnabled = true;
     private string $docsSourceRepo = '';
     private string $docsRef = '';
 
@@ -106,9 +107,16 @@ class FakeConfigRepository implements RepositoryInterface
         return '2.4.7';
     }
 
+    public function withEnabled(bool $isEnabled): self
+    {
+        $this->isEnabled = $isEnabled;
+
+        return $this;
+    }
+
     public function isEnabled(?int $storeId = null): bool
     {
-        return true;
+        return $this->isEnabled;
     }
 
     public function getStore(?int $storeId = null): StoreInterface
