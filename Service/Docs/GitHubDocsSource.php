@@ -18,7 +18,6 @@ class GitHubDocsSource
     private const USER_AGENT = 'MagoAssistant-Mago';
 
     public function __construct(
-        // Own client, not InternalApiClient: raw.githubusercontent.com redirects, which that client disables.
         private readonly CurlFactory $curlFactory,
         private readonly Json $json,
         private readonly ErrorLogger $errorLogger,
