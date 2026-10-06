@@ -8,12 +8,16 @@
  *
  * Each create() gets its own marked instance and its own DOMPurify instance, so nothing here
  * changes the global marked or DOMPurify another module may use, and they cannot change ours.
+ *
+ * Given the conversation's vault values, privacy-mode tokens are rendered as they are and replaced
+ * by their values only after sanitizing, as text (js/vault-tokens.js). Without them the tokens stay.
  */
 define([
     'MagoAssistant_Mago/js/marked.min',
     'MagoAssistant_Mago/js/purify.min',
-    'MagoAssistant_Mago/js/safe-url'
-], function (markedLibrary, createPurifier, safeUrl) {
+    'MagoAssistant_Mago/js/safe-url',
+    'MagoAssistant_Mago/js/vault-tokens'
+], function (markedLibrary, createPurifier, safeUrl, vaultTokens) {
     'use strict';
 
     var PURIFY_CONFIG = {
@@ -90,26 +94,35 @@ define([
 
     /**
      * options.tableLabel        accessible name of the scrollable wrapper around a table
-     * options.renderFencedBlock (lang, code) => html string, or null for the default code block
+     * options.renderFencedBlock (lang, code, resolveUrls) => html string, or null for the default
+     *                           code block; resolveUrls(spec) swaps the admin URL tokens in a parsed
+     *                           spec for their URLs
      */
     function createRenderer(options) {
         var tableLabel = options.tableLabel || 'Table';
         var renderFencedBlock = options.renderFencedBlock || function () { return null; };
         var defaults = markedLibrary.Renderer.prototype;
+        // The vault values of the render in progress; marked calls the renderers below synchronously.
+        let currentTokens = null;
+
+        function resolveUrls(spec) {
+            return vaultTokens.resolveUrlsDeep(spec, currentTokens);
+        }
+
         var parser = new markedLibrary.Marked({
             gfm: true,
             breaks: true,
             renderer: {
                 link: function (token) {
                     var text = this.parser.parseInline(token.tokens);
-                    var href = decodeEntities(token.href);
+                    var href = vaultTokens.resolveUrl(decodeEntities(token.href), currentTokens);
                     if (!safeUrl.isSafeLink(href)) {
                         return text;
                     }
                     return '<a href="' + escapeHtml(href) + '"' + titleAttribute(token.title) + '>' + text + '</a>';
                 },
                 image: function (token) {
-                    var src = decodeEntities(token.href);
+                    var src = vaultTokens.resolveUrl(decodeEntities(token.href), currentTokens);
                     var alt = escapeHtml(decodeEntities(token.text));
                     if (!safeUrl.isSameOrigin(src)) {
                         return alt;
@@ -122,24 +135,29 @@ define([
                         + escapeHtml(tableLabel) + '">' + defaults.table.call(this, token) + '</div>';
                 },
                 code: function (token) {
-                    var html = renderFencedBlock(token.lang, token.text);
+                    var html = renderFencedBlock(token.lang, token.text, resolveUrls);
                     return html === null ? defaults.code.call(this, token) : html;
                 }
             }
         });
         var sanitize = createSanitizer();
 
-        function renderMarkup(markdown) {
-            return markdown ? sanitize(parser.parse(markdown)) : '';
+        function renderMarkup(markdown, tokens) {
+            currentTokens = tokens || null;
+            try {
+                const html = sanitize(parser.parse(markdown));
+                return tokens ? vaultTokens.rehydrateHtml(html, tokens) : html;
+            } finally {
+                currentTokens = null;
+            }
         }
 
         return {
-            // Text from the model or the store: raw HTML in it shows as text, never as markup.
-            renderText: function (text) {
-                return text ? renderMarkup(escapeText(text)) : '';
-            },
-            // Markdown the caller built itself, with markup it escaped and wants kept.
-            renderMarkup: renderMarkup
+            // Text from the model: raw HTML in it shows as text, never as markup. tokens, when given,
+            // maps each vault token to its value, which goes in as text once the HTML is sanitized.
+            renderText: function (text, tokens) {
+                return text ? renderMarkup(escapeText(text), tokens) : '';
+            }
         };
     }
 

@@ -4,8 +4,9 @@ define([
     'MagoAssistant_Mago/js/chat/navigate-intent',
     'MagoAssistant_Mago/js/chat/session-log',
     'MagoAssistant_Mago/js/chat/confirm-text',
-    'MagoAssistant_Mago/js/markdown'
-], function (text, createTranslator, navigateIntent, createSessionLog, createConfirmText, markdownRenderer) {
+    'MagoAssistant_Mago/js/markdown',
+    'MagoAssistant_Mago/js/vault-tokens'
+], function (text, createTranslator, navigateIntent, createSessionLog, createConfirmText, markdownRenderer, vaultTokens) {
     'use strict';
 
     var isPlainObject = text.isPlainObject;
@@ -15,8 +16,6 @@ define([
     var summarizeInput = text.summarizeInput;
     var formatDate = text.formatDate;
     var formatTime = text.formatTime;
-    var escapeForMarkdown = text.escapeForMarkdown;
-    var codeSpan = text.codeSpan;
     var previewValue = text.previewValue;
 
     var config = window.MAGO_CONFIG;
@@ -65,9 +64,9 @@ define([
     // a block that is still invalid once the answer is complete renders nothing.
     var markdown = markdownRenderer.create({
         tableLabel: t('Table'),
-        renderFencedBlock: function(lang, code) {
+        renderFencedBlock: function(lang, code, resolveUrls) {
             if (lang !== 'mago' || !UI) return null;
-            return UI.renderJson(code) || (widgetsStreaming ? UI.skeleton().outerHTML : '');
+            return UI.renderJson(code, resolveUrls) || (widgetsStreaming ? UI.skeleton().outerHTML : '');
         }
     });
     var conversationId = null;
@@ -249,7 +248,7 @@ define([
         formBridge.whenFormReady(entityType, NAVIGATE_INTENT_FORM_TIMEOUT_MS, function (found) {
             if (!found) {
                 hideNavigateStatus();
-                addMsg('assistant', renderPanelMd(formatNavigateTimeoutMessage(intent.target)));
+                addTextMsg('assistant', formatNavigateTimeoutMessage(intent.target));
                 return;
             }
 
@@ -278,7 +277,7 @@ define([
         if (!result) return;
         var text = formatApplyOutcomeMessage(result);
         if (!text) return;
-        addMsg('assistant', renderPanelMd(text));
+        addTextMsg('assistant', text);
     }
 
     function saveState() {
@@ -784,6 +783,7 @@ define([
                 return;
             }
             var loaded = data.messages || [];
+            var tokens = data.tokens || {};
             if (!loaded.length) {
                 showGreeting();
                 return;
@@ -814,7 +814,9 @@ define([
                     addDateSep(m.created_at);
                     // No timestamp: a live bubble never carries one, and a reloaded conversation
                     // that grows them is not the same conversation the admin was just looking at.
-                    var msgEl = addMsg(m.role, renderMd(m.content));
+                    var msgEl = m.role === 'user'
+                        ? addTextMsg('user', vaultTokens.replaceTokens(m.content, tokens))
+                        : addMsg('assistant', renderMd(m.content, tokens));
                     if (m.role === 'assistant') {
                         attachFeedback(msgEl, m.entity_id, m.rating || null);
                     }
@@ -860,26 +862,21 @@ define([
     var widgetsStreaming = false;
 
     // Renders an answer that is still coming in: an incomplete widget block shows a skeleton.
-    function renderStreamingMd(t) {
+    function renderStreamingMd(t, tokens) {
         widgetsStreaming = true;
         try {
-            return renderMd(t);
+            return renderMd(t, tokens);
         } finally {
             widgetsStreaming = false;
         }
     }
 
-    function renderMd(t) {
-        // Model output is attacker-influenceable (tool results can carry injected instructions), so
-        // raw HTML in it shows as text, and what marked renders is sanitized before innerHTML.
-        return markdown.renderText(t);
-    }
-
-    // For sentences the panel builds itself (chat/confirm-text.js). Every value in them that came
-    // from the store or the model is already escaped with text.escapeForMarkdown and wrapped in a
-    // <code> the panel wrote, so escaping again would show that <code> and every entity as text.
-    function renderPanelMd(t) {
-        return markdown.renderMarkup(t);
+    // Only the model's own answer is markdown. Model output is attacker-influenceable (tool results
+    // can carry injected instructions), so raw HTML in it shows as text, and what marked renders is
+    // sanitized before innerHTML. tokens: the vault values its privacy tokens stand for, which go
+    // in as text after sanitizing, so a customer's review or name can never become markup.
+    function renderMd(t, tokens) {
+        return markdown.renderText(t, tokens);
     }
 
     var lastDateLabel = '';
@@ -901,6 +898,16 @@ define([
         }
     }
 
+
+    // Anything that is not the model's answer (what the admin typed, the panel's own notices) is
+    // shown exactly as written: a text node, never markdown or HTML.
+    function addTextMsg(role, text) {
+        const msgEl = addMsg(role, '');
+        const paragraph = document.createElement('p');
+        paragraph.textContent = text;
+        msgEl.querySelector('.mago-message-content').appendChild(paragraph);
+        return msgEl;
+    }
 
     function addMsg(role, html, timestamp) {
         var cls = role === 'user' ? 'is-user' : 'is-assistant';
@@ -1430,11 +1437,12 @@ define([
         autoGrow();
         updatePrivacyHint('');
         setBusy(true);
-        addMsg('user', renderMd(text));
+        addTextMsg('user', text);
 
         var msg = null;
         var content = null;
         var full = '';
+        let tokens = {};
 
         /* The form's fields register over several ticks, and a Page Builder field only once its
            stage has initialised. Sending straight away describes a form that is genuinely missing
@@ -1496,7 +1504,8 @@ define([
                     try { var d=JSON.parse(ln.substring(6)); } catch(e){return;}
                     if (evt==='text'&&d.text) {
                         if (!msg) { loading.style.display='none'; msg=addMsg('assistant',''); content=msg.querySelector('.mago-message-content'); }
-                        full+=d.text; content.innerHTML=renderStreamingMd(full); msgs.scrollTop=msgs.scrollHeight;
+                        tokens = vaultTokens.merge(tokens, d.tokens);
+                        full+=d.text; content.innerHTML=renderStreamingMd(full, tokens); msgs.scrollTop=msgs.scrollHeight;
                     }
                     // The server caught a raw JSON/XML dump in the finished reply and is re-presenting it:
                     // drop what streamed so the corrected answer streams into a clean message.
@@ -1521,7 +1530,7 @@ define([
                     }
                     else if (evt==='done') {
                         gotDone = true;
-                        if (content && full) { content.innerHTML = renderMd(full); }
+                        if (content && full) { content.innerHTML = renderMd(full, tokens); }
                         if(d.conversation_id) conversationId=d.conversation_id;
                         saveState(); releaseInput();
                         if (d.message_id && msg && !d.pending_confirmation) {
@@ -1589,11 +1598,11 @@ define([
 
         /* A form write is the one confirmation the tool's own description cannot describe: what
            matters is which fields change and from what, read off the form open right now. That
-           sentence is built in chat/confirm-text.js and rendered as markdown here, so it replaces
+           sentence is built in chat/confirm-text.js, as DOM with every value a text node, and replaces
            both the description and the parameter table, which would otherwise show the raw
            directive JSON. Every other tool keeps the generic card. */
         var formWriteMessage = isFormWrite(first)
-            ? {html: renderPanelMd(formatConfirmMessage(tools))}
+            ? formatConfirmMessage(tools)
             : null;
         var hooks = {actions: 'mago-confirm-actions', allow: 'mago-btn--confirm', confirm: 'mago-btn--confirm', later: 'mago-btn--reject', cancel: 'mago-btn--reject'};
         var irreversible = tools.filter(function(t) { return t.irreversible; });
@@ -1641,9 +1650,9 @@ define([
             });
         }
         var actions = card.querySelector('.mago-confirm-actions');
-        // A write carrying a masked personal value (#114) is allowed, but only with that value in plain sight.
+        // A write carrying a value that was masked for privacy (#114) is allowed, but only with that value in plain sight.
         if (tools.some(function(t) { return t.sensitive; })) {
-            actions.parentNode.insertBefore(UI.callout({tone: 'warn', text: 'This may write personal data (such as an email address or phone number). Check the values before you allow it.'}), actions);
+            actions.parentNode.insertBefore(UI.callout({tone: 'warn', text: t('This writes values that were masked for privacy: personal or customer data, such as a name, an email address or an order number. Check them before you allow it.')}), actions);
         }
         msgEl.appendChild(card);
         msgs.scrollTop = msgs.scrollHeight;
@@ -1716,6 +1725,7 @@ define([
     function handleConfirm(messageId, run) {
         setBusy(true);
         var msg = null, content = null, full = '';
+        let tokens = {};
 
         var failureMessage = '';
 
@@ -1798,7 +1808,8 @@ define([
                     try { var d=JSON.parse(ln.substring(6)); } catch(e){return;}
                     if (evt==='text'&&d.text) {
                         if (!msg) { loading.style.display='none'; msg=addMsg('assistant',''); content=msg.querySelector('.mago-message-content'); }
-                        full+=d.text; content.innerHTML=renderStreamingMd(full); msgs.scrollTop=msgs.scrollHeight;
+                        tokens = vaultTokens.merge(tokens, d.tokens);
+                        full+=d.text; content.innerHTML=renderStreamingMd(full, tokens); msgs.scrollTop=msgs.scrollHeight;
                     }
                     else if (evt==='tool_call') {
                         if (!msg) { loading.style.display='none'; msg=addMsg('assistant',''); content=msg.querySelector('.mago-message-content'); }
@@ -1829,7 +1840,7 @@ define([
                     }
                     else if (evt==='form_apply') { applyPending = true; applyFormDirective(d, handleApplyOutcome); }
                     else if (evt==='done') {
-                        if (content && full) { content.innerHTML = renderMd(full); }
+                        if (content && full) { content.innerHTML = renderMd(full, tokens); }
                         if (d.conversation_id) conversationId=d.conversation_id;
                         saveState(); releaseInput();
                         finishRun(failed ? 'failed' : 'done');
@@ -1887,7 +1898,7 @@ define([
             body: JSON.stringify({message_id: messageId, form_key: formKey}),
             credentials: 'same-origin'
         }).then(function(r) { return r.json(); }).then(function(d) {
-            addMsg('assistant', renderMd(t('Action rejected. No changes were made.')));
+            addTextMsg('assistant', t('Action rejected. No changes were made.'));
         }).catch(function(e) {
             showError(addMsg('assistant', ''), e.message);
         });

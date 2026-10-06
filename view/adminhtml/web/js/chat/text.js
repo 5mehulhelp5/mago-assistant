@@ -65,21 +65,6 @@ define([], function () {
         return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
     }
 
-    // Field labels and values come straight out of the open form, which means straight out of the
-    // database: a product description an import wrote is rendered here through marked, into
-    // innerHTML. Backticks are not an escape (a value containing one closes the code span and the
-    // rest is raw HTML), so everything markdown or HTML could act on is turned into an entity, and
-    // the value is shown in a <code> element marked passes through untouched.
-    function escapeForMarkdown(text) {
-        return String(text === null || typeof text === 'undefined' ? '' : text).replace(/[&<>"'`*_\[\]~\\]/g, function (ch) {
-            return '&#' + ch.charCodeAt(0) + ';';
-        });
-    }
-
-    function codeSpan(text) {
-        return '<code>' + escapeForMarkdown(text) + '</code>';
-    }
-
     // A description can be hundreds of characters; the card is a review, not the value itself.
     var MAX_CONFIRM_VALUE_PREVIEW = 80;
 
@@ -96,8 +81,6 @@ define([], function () {
         summarizeInput: summarizeInput,
         formatDate: formatDate,
         formatTime: formatTime,
-        escapeForMarkdown: escapeForMarkdown,
-        codeSpan: codeSpan,
         previewValue: previewValue
     };
 });

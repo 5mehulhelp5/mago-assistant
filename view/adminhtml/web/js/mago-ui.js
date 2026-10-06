@@ -1629,7 +1629,11 @@ define(['MagoAssistant_Mago/js/safe-url'], function (safeUrl) {
 
     // Render a JSON string (a ```mago fenced block) to HTML, or null when it
     // is not a valid spec. Used by the markdown renderer, which needs a string.
-    function renderJson(json) {
+    // resolveUrls, when given, maps the parsed spec before it is built: the
+    // markdown renderer uses it to turn admin URL tokens into the URLs they
+    // stand for. Every other token is built as it is and becomes its value, as
+    // text, once the answer is rendered.
+    function renderJson(json, resolveUrls) {
         var spec;
         try {
             spec = JSON.parse(json);
@@ -1640,6 +1644,9 @@ define(['MagoAssistant_Mago/js/safe-url'], function (safeUrl) {
             } catch (e2) {
                 return null;
             }
+        }
+        if (typeof resolveUrls === 'function') {
+            spec = resolveUrls(spec);
         }
         var specs = Array.isArray(spec) ? spec : [spec];
         var wrap = el('div', 'mago-answer');
