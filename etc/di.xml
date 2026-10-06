@@ -288,6 +288,18 @@
         </arguments>
     </type>
 
+    <!-- The panel is on every admin page, also when the assistant is disabled or hidden, so it must
+         not build the registry (and every tool in it) until it actually renders -->
+    <type name="MagoAssistant\Mago\Block\Adminhtml\ChatPanel">
+        <arguments>
+            <argument name="toolRegistry" xsi:type="object">MagoAssistant\Mago\Service\Tool\ToolRegistry\Proxy</argument>
+            <argument name="commandRegistry" xsi:type="object">MagoAssistant\Mago\Service\Command\CommandRegistry\Proxy</argument>
+            <argument name="commandRunner" xsi:type="object">MagoAssistant\Mago\Service\Command\CommandRunner\Proxy</argument>
+            <argument name="formPolicy" xsi:type="object">MagoAssistant\Mago\Service\Form\FormPolicy\Proxy</argument>
+            <argument name="exampleQuestions" xsi:type="object">MagoAssistant\Mago\Service\Welcome\ExampleQuestions\Proxy</argument>
+        </arguments>
+    </type>
+
     <!-- Skill Actions: SalesData -->
     <type name="MagoAssistant\Mago\Service\Skills\Analytics\SalesData">
         <arguments>
