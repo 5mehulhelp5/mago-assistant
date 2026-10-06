@@ -79,7 +79,8 @@ final class RequireAssistantEnabledTest extends TestCase
         );
         $expected = array_values(array_filter(
             $controllers,
-            fn (string $class): bool => !in_array(
+            // A trait in the folder (ReleasesSessionLock, FormKeyJsonValidation) is not a controller
+            fn (string $class): bool => !trait_exists($class) && !in_array(
                 substr($class, strlen(self::CONTROLLER_NAMESPACE)),
                 self::UNGUARDED_CONTROLLERS,
                 true
