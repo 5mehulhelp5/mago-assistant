@@ -253,6 +253,7 @@ Some checks Magento only registers for `webapi_rest`. In-process they are replac
 | REST-only plugin | In-process |
 |------------------|------------|
 | `ProductAuthorization`, `PageAclPlugin` (design fields need `Magento_Catalog::edit_product_design` / `Magento_Cms::save_design`) | `Guard\DesignFieldGuard`, configured in `di.xml` per repository. It refuses any design field sent with a value, so it is a little stricter than the core check, which accepts a value equal to the saved one. |
+| Theme `Data\Collection` plugin, disabled in `webapi_rest` (outside it, a current page past the last one is reset to page 1) | `PastLastPageNormalizer` empties `items` when the output's `search_criteria.current_page` lies beyond `total_count` / `page_size`, so a `getList` route answers page 999 with no items, as REST does, instead of with page 1. |
 | `APISourceItemIndexerPlugin` (reindexes a configurable parent's stock after a child is linked) | `FollowUp\ConfigurableStockIndex` runs the same plugin after `configurable-products/{sku}/child` when the chat does not run in `webapi_rest` and the inventory module is enabled. |
 
 The other `webapi_rest`-only plugins on the services the tools call were checked and need no replacement:

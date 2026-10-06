@@ -11,6 +11,7 @@ use MagoAssistant\Mago\Logger\ErrorLogger;
 use MagoAssistant\Mago\Service\Api\InProcess\ApiCall;
 use MagoAssistant\Mago\Service\Api\InProcess\ErrorMapper;
 use MagoAssistant\Mago\Service\Api\InProcess\FollowUp\ServiceCallFollowUpInterface;
+use MagoAssistant\Mago\Service\Api\InProcess\PastLastPageNormalizer;
 use MagoAssistant\Mago\Service\Api\InProcess\ResolvedRoute;
 use MagoAssistant\Mago\Service\Api\InProcess\RouteAuthorizer;
 use MagoAssistant\Mago\Service\Api\InProcess\ServiceDispatcher;
@@ -95,11 +96,38 @@ final class ServiceDispatcherTest extends TestCase
     }
 
     /**
+     * Outside webapi_rest Magento resets a page past the last one to page 1; REST answers it empty.
+     */
+    #[Test]
+    public function itAnswersASearchPastTheLastPageWithoutItems(): void
+    {
+        $transaction = new FakeConnectionTransaction();
+        $service = new class {
+            /**
+             * @return array<string, mixed>
+             */
+            public function save(string $name): array
+            {
+                return [
+                    'items' => [['name' => $name]],
+                    'search_criteria' => ['page_size' => 20, 'current_page' => 999999],
+                    'total_count' => 1,
+                ];
+            }
+        };
+
+        $result = $this->dispatcher($transaction, $service)->dispatch($this->call());
+
+        self::assertSame([], $result['items']);
+        self::assertSame(1, $result['total_count']);
+    }
+
+    /**
      * @param ServiceCallFollowUpInterface[] $followUps
      */
     private function dispatcher(
         FakeConnectionTransaction $transaction,
-        FakeTransactionalService $service,
+        object $service,
         array $followUps = []
     ): ServiceDispatcher {
         return new ServiceDispatcher(
@@ -112,6 +140,7 @@ final class ServiceDispatcherTest extends TestCase
             new FakeServiceInputProcessor(),
             new FakeInputArraySizeLimitValue(),
             new FakeServiceOutputConverter(),
+            new PastLastPageNormalizer(),
             new FakeObjectManager([self::SERVICE_CLASS => $service]),
             new ErrorMapper(new FakeExceptionMasker()),
             new TransactionBoundary($transaction),

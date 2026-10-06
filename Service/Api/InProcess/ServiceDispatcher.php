@@ -17,7 +17,7 @@ use MagoAssistant\Mago\Service\Api\InProcess\Guard\ServiceCallGuardInterface;
 /**
  * Runs a web API route in this PHP process for one admin user, doing what the REST front controller
  * does for a synchronous request: store from the URL, route match, ACL, input conversion, the service
- * call and output conversion. The ObjectManager resolves the service class the route names, exactly as
+ * call and output conversion, with the paging REST answers. The ObjectManager resolves the service class the route names, exactly as
  * Magento\Webapi\Controller\Rest\SynchronousRequestProcessor does.
  */
 class ServiceDispatcher
@@ -34,6 +34,7 @@ class ServiceDispatcher
         private readonly ServiceInputProcessor $serviceInputProcessor,
         private readonly InputArraySizeLimitValue $inputArraySizeLimitValue,
         private readonly ServiceOutputConverter $serviceOutputConverter,
+        private readonly PastLastPageNormalizer $pastLastPageNormalizer,
         private readonly ObjectManagerInterface $objectManager,
         private readonly ErrorMapper $errorMapper,
         private readonly TransactionBoundary $transactionBoundary,
@@ -72,7 +73,9 @@ class ServiceDispatcher
         $output = $this->objectManager->get($route->serviceClass)->{$route->serviceMethod}(...$arguments);
         $this->runFollowUps($route, $arguments);
 
-        return $this->serviceOutputConverter->convert($output, $route, $authorization);
+        return $this->pastLastPageNormalizer->normalize(
+            $this->serviceOutputConverter->convert($output, $route, $authorization)
+        );
     }
 
     /**
