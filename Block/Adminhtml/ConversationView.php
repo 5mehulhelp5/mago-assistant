@@ -286,24 +286,20 @@ class ConversationView extends Template
         // Italic: *text*
         $html = (string)preg_replace('/(?<!\*)\*([^*]+)\*(?!\*)/', '<em>$1</em>', $html);
 
-        // Markdown links: [text](url), http(s) or a path on this store. "//host" and "/\host" are
-        // off-site links that only look like paths, so the path may not start with either.
+        // Markdown links [text](url) and bare URLs in one pass, so a bare URL inside a link's own
+        // href is never linked a second time (that nested <a> broke out of the href attribute).
+        // A link is http(s) or a path on this store: "//host" and "/\host" only look like paths.
         $html = (string)preg_replace_callback(
-            '/\[([^\]]+)\]\(((?:https?:\/\/[^ )]+|\/(?![\/\\\\\s])[^ )]+))\)/',
+            '/\[([^\]]+)\]\(((?:https?:\/\/[^ )]+|\/(?![\/\\\\\s])[^ )]+))\)|(https?:\/\/[^\s<]+)/',
             function ($m) {
-                $linkText = $m[1];
+                if (isset($m[3])) {
+                    return '<a href="' . $m[3] . '" target="_blank" rel="noopener noreferrer">' . $m[3] . '</a>';
+                }
                 $url = str_replace(["\n", "\r"], '', $m[2]);
                 $target = str_starts_with($url, '/') ? '_self' : '_blank';
                 return '<a href="' . $url . '" target="' . $target . '" rel="noopener noreferrer">'
-                    . $linkText . '</a>';
+                    . $m[1] . '</a>';
             },
-            $html
-        );
-
-        // Bare URLs not already in href
-        $html = (string)preg_replace(
-            '/(?<!href="|">)(https?:\/\/[^\s<]+)/',
-            '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
             $html
         );
 
