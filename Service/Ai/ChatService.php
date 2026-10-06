@@ -9,6 +9,7 @@ namespace MagoAssistant\Mago\Service\Ai;
 use MageOS\AiBase\Api\AiClientInterface;
 use MagoAssistant\Mago\Api\Tool\ValidatingToolInterface;
 use MagoAssistant\Mago\Api\ChatServiceInterface;
+use MagoAssistant\Mago\Api\Tool\HighImpactToolInterface;
 use MagoAssistant\Mago\Api\Tool\IrreversibleToolInterface;
 use MagoAssistant\Mago\Api\Tool\PresentableToolInterface;
 use MagoAssistant\Mago\Api\Tool\ToolInterface;
@@ -562,12 +563,12 @@ class ChatService implements ChatServiceInterface
      * @param ToolInterface $tool
      * @param array<string, mixed> $input
      * @param int|null $adminUserId
-     * @return array{irreversible?: bool, impacts?: string[]}
+     * @return array{irreversible?: bool, caution?: bool, impacts?: string[]}
      */
     private function describeRisk(ToolInterface $tool, array $input, ?int $adminUserId): array
     {
         if (!$tool instanceof IrreversibleToolInterface || !$tool->isIrreversibleAction($input)) {
-            return [];
+            return $this->describeCaution($tool, $input, $adminUserId);
         }
 
         try {
@@ -579,6 +580,32 @@ class ChatService implements ChatServiceInterface
         }
 
         return ['irreversible' => true, 'impacts' => array_values(array_map('strval', $impacts))];
+    }
+
+    /**
+     * Caution flag and lines for a reversible write that changes something the admin should weigh
+     * (#245), empty when the tool names none
+     *
+     * @param ToolInterface $tool
+     * @param array<string, mixed> $input
+     * @param int|null $adminUserId
+     * @return array{caution?: bool, impacts?: string[]}
+     */
+    private function describeCaution(ToolInterface $tool, array $input, ?int $adminUserId): array
+    {
+        if (!$tool instanceof HighImpactToolInterface) {
+            return [];
+        }
+
+        try {
+            $cautions = array_values(array_map('strval', $tool->getCautions($input, (int)$adminUserId)));
+        } catch (\Throwable $e) {
+            // A broken lookup must not block the ask, nor drop the acknowledgement it would have asked for
+            $this->errorReporter->log('Tool Cautions ' . $tool->getName(), $e);
+            $cautions = ['Could not work out what this changes. Check it before you allow it.'];
+        }
+
+        return $cautions === [] ? [] : ['caution' => true, 'impacts' => $cautions];
     }
 
     private function logUsage(

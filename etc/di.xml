@@ -523,4 +523,20 @@
             <argument name="structure" xsi:type="object">MagoAssistantMagoAdminhtmlConfigStructure</argument>
         </arguments>
     </type>
+    <!-- config_writer saves through the field's backend model, which only the adminhtml structure declares -->
+    <virtualType name="MagoAssistantMagoAdminhtmlConfigStructureFactory" type="Magento\Config\Model\Config\StructureFactory">
+        <arguments>
+            <argument name="instanceName" xsi:type="string">adminhtmlConfigStructure</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="MagoAssistantMagoPreparedValueFactory" type="Magento\Config\Model\PreparedValueFactory">
+        <arguments>
+            <argument name="structureFactory" xsi:type="object">MagoAssistantMagoAdminhtmlConfigStructureFactory</argument>
+        </arguments>
+    </virtualType>
+    <type name="MagoAssistant\Mago\Service\Skills\Configuration\ConfigValueSaver">
+        <arguments>
+            <argument name="preparedValueFactory" xsi:type="object">MagoAssistantMagoPreparedValueFactory</argument>
+        </arguments>
+    </type>
 </config>

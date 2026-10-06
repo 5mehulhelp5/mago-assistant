@@ -1,0 +1,79 @@
+<?php
+/**
+ * Copyright © Mago Assistant
+ */
+declare(strict_types=1);
+
+namespace MagoAssistant\Mago\Service\Skills\Configuration;
+
+use Magento\Config\Model\Config\Backend\File;
+use Magento\Config\Model\Config\Reader\Source\Deployed\SettingChecker;
+use Magento\Config\Model\PreparedValueFactory;
+use Magento\Framework\App\Config\Value;
+use Magento\Framework\Exception\LocalizedException;
+use Magento\Store\Model\StoreManagerInterface;
+
+/**
+ * Saves one configuration value the way bin/magento config:set does: through the field's backend
+ * model, so its validation, encryption and after-save steps run as when the admin saves the
+ * configuration screen, and never over a value app/etc/env.php, config.php or a CONFIG__ environment
+ * variable locks, at the scope asked or at the default scope it falls back to, the same check that
+ * greys the field out in the admin (#245).
+ *
+ * The value factory is pinned to the adminhtml config structure in etc/di.xml: only that structure
+ * knows the backend models, and the chat also runs in webapi_rest and cron.
+ */
+class ConfigValueSaver
+{
+    public function __construct(
+        private readonly PreparedValueFactory $preparedValueFactory,
+        private readonly SettingChecker $settingChecker,
+        private readonly StoreManagerInterface $storeManager
+    ) {
+    }
+
+    /**
+     * @param string $path
+     * @param string $value
+     * @param string $scope "default", "websites" or "stores"
+     * @param int $scopeId
+     * @return void
+     * @throws LocalizedException When the value is locked, the field takes an upload, or its backend
+     *     model refuses the value
+     */
+    public function save(string $path, string $value, string $scope, int $scopeId): void
+    {
+        $scopeCode = $this->scopeCode($scope, $scopeId);
+        if ($this->settingChecker->isReadOnly($path, $scope, $scopeCode)) {
+            throw new LocalizedException(__(
+                'This setting is locked in app/etc/env.php or app/etc/config.php, so it cannot be changed here.'
+            ));
+        }
+
+        $backendModel = $this->preparedValueFactory->create($path, $value, $scope, $scopeCode);
+        if (!$backendModel instanceof Value) {
+            throw new LocalizedException(__('This setting cannot be saved here.'));
+        }
+        // A file field clears itself when no upload comes with the save.
+        if ($backendModel instanceof File) {
+            throw new LocalizedException(__(
+                'This setting takes an uploaded file; change it under Stores > Configuration.'
+            ));
+        }
+        $backendModel->save();
+    }
+
+    /**
+     * @param string $scope
+     * @param int $scopeId
+     * @return string|null
+     */
+    private function scopeCode(string $scope, int $scopeId): ?string
+    {
+        return match ($scope) {
+            'websites' => (string)$this->storeManager->getWebsite($scopeId)->getCode(),
+            'stores' => (string)$this->storeManager->getStore($scopeId)->getCode(),
+            default => null,
+        };
+    }
+}

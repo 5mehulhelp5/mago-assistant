@@ -129,6 +129,14 @@ the chat panel then shows the "cannot be undone" card with an acknowledgement ch
 a plain Allow button. Built-in irreversible actions: `order_manager` `cancel`,
 `create_creditmemo` and `resend_confirmation`, `url_rewrite_manager` `delete`.
 
+A write that can be reverted but changes something the admin should weigh first implements
+`MagoAssistant\Mago\Api\Tool\HighImpactToolInterface`: `getCautions(array $input, int $adminUserId)`
+returns the lines to show, empty when the plain card will do. `ChatService` adds `caution: true`
+and the lines as `impacts`; the panel shows the same card with "I understand what this changes".
+`config_writer` uses it for storefront scripts, admin security, URLs, mail routing, developer,
+environment and sensitive settings, with the current and the new value (#245). The ACL still
+decides whether the admin may make the change at all.
+
 An action that is only irreversible for some calls implements
 `ConditionallyIrreversibleActionInterface` and answers `isIrreversible(array $params)`; the other
 calls get the plain Allow button. The `order_manager` actions `add_comment`, `update_status`,
@@ -399,7 +407,7 @@ Both tools implement `AvailabilityAwareToolInterface`, so the registry offers ex
 | Tool | Class | Read-only | Description |
 |------|-------|-----------|-------------|
 | `config_reader` | `Service\Skills\Configuration\ConfigReader` | Yes | Reads Magento system configuration by path and scope. Validates the scope against existing websites/store views and lists per-scope overrides of a default value. Each path is gated by the ACL resource its section declares in `system.xml` (`Magento_Payment::payment`, `Magento_Config::config_admin`, …), the same resource the admin needs to open that section under Stores > Configuration; a path outside any section is refused. Refuses credentials (a path named like a key, secret, password, token or username, or stored by a password or encrypting field), payment config and Mago's own `mago/*` settings. A value Magento marks sensitive (contact addresses, carrier accounts, SMTP host: what `app:config:dump` keeps out of `config.php`) comes back as `masked_value`, which the privacy filter turns into a `mago://config_N` token; the admin reads the real value (#106). Whether a carrier account id is refused or masked follows its field type in `system.xml`. |
-| `config_writer` | `Service\Skills\Configuration\ConfigWriter` | No | Writes Magento system configuration on a validated default/website/store view scope. Same per-section ACL gate and blocked-path protections, shared through `ConfigPathAccess`; a sensitive value is echoed only as `masked_value`. Requires user confirmation. |
+| `config_writer` | `Service\Skills\Configuration\ConfigWriter` | No | Writes Magento system configuration on a validated default/website/store view scope. Same per-section ACL gate and blocked-path protections, shared through `ConfigPathAccess`; a sensitive value is echoed only as `masked_value`. Saves through the field's backend model like `bin/magento config:set` (validation, encryption, after-save), refuses a value locked in `env.php`/`config.php`, and shows a caution card for high-impact settings. Requires user confirmation. |
 | `cache_manager` | `Service\Skills\Configuration\CacheManager` | No | Flush all caches, flush specific cache types, or view cache status. Requires confirmation for flush actions. |
 | `indexer_manager` | `Service\Skills\Configuration\IndexerManager` | No | Reindex specific indexers or all, check indexer status, change indexer mode (realtime/schedule). Requires confirmation. |
 
