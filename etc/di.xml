@@ -4,7 +4,9 @@
     <!-- Config Repository -->
     <preference for="MagoAssistant\Mago\Api\Config\RepositoryInterface" type="MagoAssistant\Mago\Model\Config\Repository"/>
 
+    <!-- Internal API: tools call web API routes in-process, as the admin user they act for -->
     <preference for="MagoAssistant\Mago\Api\InternalApiClientInterface" type="MagoAssistant\Mago\Service\Api\InternalApiClient"/>
+    <preference for="MagoAssistant\Mago\Service\Api\InProcess\ExceptionMaskerInterface" type="MagoAssistant\Mago\Service\Api\InProcess\ExceptionMasker"/>
 
     <!-- Chat Service -->
     <preference for="MagoAssistant\Mago\Api\ChatServiceInterface" type="MagoAssistant\Mago\Service\Ai\ChatService"/>
