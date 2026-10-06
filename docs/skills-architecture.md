@@ -524,6 +524,8 @@ The chat panel's slash-command legend is fed from `ToolRegistry::getEnabledTools
 
 Per-user rows only apply to genuine admin users. Integration-token ids live in a different table than `admin_user`, so a colliding id must never select another admin's permission rows or conversations. The REST endpoints (`Model/WebApi/ChatManagement.php`) therefore require an admin user token: any other user type (`USER_TYPE_INTEGRATION`, customer, guest) receives an authorization error before any conversation or tool work happens.
 
+Unlike the admin panel, the REST endpoints return message content with the privacy-mode values already in place. That content is untrusted: it can quote text a customer wrote (a review, a nickname) and markup the model was steered into writing. A REST client must show it as plain text, or sanitize it as strictly as the panel does (see `privacy-mode/README.md`).
+
 `getAllTools()` / `getToolByName()` remain unfiltered — they serve the Skills admin UI and JIT instruction lookup, not tool access.
 
 ---

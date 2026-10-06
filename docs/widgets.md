@@ -204,6 +204,14 @@ The whole answer, widgets included, then goes through DOMPurify before it reache
 pass also drops any `src` that is not on this store, so an image or thumb from another site never
 loads: it would tell that site the admin opened the answer.
 
+With privacy mode, a spec value the model copied from a tool result can be a token such as
+`mago://name_1`. Your builder receives it as the token; only a value that is exactly an admin URL
+token (`mago://url_1`) arrives as the URL it stands for, so it works as an `href`. Once the answer
+is rendered and sanitized, each token in a text node, `title`, `alt`, `aria-label`, `placeholder`
+or `data-mago-send` is replaced by its value as text; any other attribute that still holds a
+token is dropped. So put values in text, not in attributes, and do not slice or parse a value
+that may be a token.
+
 A builder that throws is skipped with a console warning; the rest of the answer still renders.
 
 ### Interaction

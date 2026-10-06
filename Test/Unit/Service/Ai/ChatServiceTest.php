@@ -1078,6 +1078,114 @@ final class ChatServiceTest extends TestCase
     }
 
     #[Test]
+    public function itRefusesToCopyCustomerWrittenTextIntoAWrite(): void
+    {
+        $this->grants['cms_data'] = 'write';
+        $vault = new ConversationVault();
+        $review = $vault->tokenise('Best chair ever <img src=x onerror=alert(1)>', 'reviewtext');
+        $service = $this->buildChatService([], $this->privacyService($vault));
+
+        $results = $service->executeConfirmedTools([[
+            'id' => 'call_1',
+            'name' => 'cms_data',
+            'input' => ['action' => 'update_page', 'content' => 'Our customers say: ' . $review],
+        ]], self::ADMIN_ID);
+
+        self::assertArrayHasKey('error', $results['call_1']);
+        self::assertStringContainsString('text a customer wrote', (string)$results['call_1']['error']);
+    }
+
+    #[Test]
+    public function itRefusesToCopyAReviewersNicknameIntoAWrite(): void
+    {
+        $this->grants['cms_data'] = 'write';
+        $vault = new ConversationVault();
+        $nickname = $vault->tokenise('Jan', 'nickname');
+        $service = $this->buildChatService([], $this->privacyService($vault));
+
+        $results = $service->executeConfirmedTools([[
+            'id' => 'call_1',
+            'name' => 'cms_data',
+            'input' => ['action' => 'update_page', 'content' => 'Thanks ' . $nickname],
+        ]], self::ADMIN_ID);
+
+        self::assertStringContainsString('text a customer wrote', (string)($results['call_1']['error'] ?? ''));
+    }
+
+    #[Test]
+    public function confirmationFlagsAWriteCarryingAnyMaskedValueButAnAdminUrl(): void
+    {
+        $this->grants = ['cms_data' => 'write'];
+        $service = $this->buildChatService();
+        $this->responses = [[
+            'content' => '',
+            'tool_calls' => [
+                ['id' => 'call_1', 'name' => 'cms_data', 'input' => ['action' => 'update_page', 'content' => 'About mago://order_1']],
+                ['id' => 'call_2', 'name' => 'cms_data', 'input' => ['action' => 'update_page', 'content' => 'Shop in mago://city_1']],
+                ['id' => 'call_3', 'name' => 'cms_data', 'input' => ['action' => 'update_page', 'content' => 'See mago://url_1']],
+            ],
+        ]];
+        $confirm = null;
+        $onChunk = static function (string $type, array $data) use (&$confirm): void {
+            if ($type === 'confirm') {
+                $confirm = $data;
+            }
+        };
+
+        $service->processMessageStreaming([$this->userMessage()], $onChunk, null, self::ADMIN_ID);
+
+        self::assertTrue($confirm['tools'][0]['sensitive']);
+        self::assertTrue($confirm['tools'][1]['sensitive']);
+        self::assertArrayNotHasKey('sensitive', $confirm['tools'][2]);
+    }
+
+    #[Test]
+    public function itStreamsTheAnswerWithItsTokensIntactAndTheirValuesBeside(): void
+    {
+        $vault = new ConversationVault();
+        $review = $vault->tokenise('**bold** [click](https://evil.example)', 'reviewtext');
+        $url = $vault->tokenise('https://shop.test/admin/review/product/edit/id/3/key/abc/', 'url');
+        $service = $this->buildChatService([], $this->privacyService($vault));
+        $this->responses = [[
+            'content' => '',
+            'tool_calls' => [],
+            'streamed' => ['The review says ', substr($review, 0, 9), substr($review, 9) . ', [open it](' . $url . ').'],
+        ]];
+        $texts = [];
+        $onChunk = static function (string $type, array $data) use (&$texts): void {
+            if ($type === 'text') {
+                $texts[] = $data;
+            }
+        };
+
+        $service->processMessageStreaming([$this->userMessage()], $onChunk, null, self::ADMIN_ID);
+
+        $streamed = implode('', array_column($texts, 'text'));
+        $tokens = array_merge(...array_map(static fn (array $text): array => $text['tokens'] ?? [], $texts));
+        self::assertSame('The review says ' . $review . ', [open it](' . $url . ').', $streamed);
+        self::assertSame([
+            $review => '**bold** [click](https://evil.example)',
+            $url => 'https://shop.test/admin/review/product/edit/id/3/key/abc/',
+        ], $tokens);
+    }
+
+    #[Test]
+    public function itStreamsATextDeltaWithoutTokensAsBefore(): void
+    {
+        $this->responses = [['content' => '', 'tool_calls' => [], 'streamed' => ['Nothing masked.']]];
+        $texts = [];
+        $onChunk = static function (string $type, array $data) use (&$texts): void {
+            if ($type === 'text') {
+                $texts[] = $data;
+            }
+        };
+
+        $this->chatService->processMessageStreaming([$this->userMessage()], $onChunk, null, self::ADMIN_ID);
+
+        self::assertSame([['text' => 'Nothing masked.']], $texts);
+    }
+
+    #[Test]
     public function streamingRePresentsAnAnswerThatDumpedRawJson(): void
     {
         $this->responses = [

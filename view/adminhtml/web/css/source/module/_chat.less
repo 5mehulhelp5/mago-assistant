@@ -625,9 +625,9 @@ html:has(body.mago-active) {
     }
 }
 
-// Links inside the user's own bubble stay ink-coloured
-.mago-message.is-user .mago-message-content a {
-    color: var(--mago-ink, #373330);
+// The user's own message is plain text, shown exactly as typed, line breaks included
+.mago-message.is-user .mago-message-content {
+    white-space: pre-wrap;
 }
 
 // Confirmation (S01 skill card), progress (S02) and result line (S03) are built

@@ -67,15 +67,18 @@ class PrivacyServiceTest extends TestCase
     }
 
     #[Test]
-    public function personalTokensAreFlaggedForTheConfirmationWarning(): void
+    public function everyMaskedValueExceptAnAdminUrlIsFlaggedForTheConfirmationWarning(): void
     {
         $service = $this->service(new ConversationVault());
 
         self::assertTrue($service->containsPersonalToken(['content' => 'Mail mago://email_1 now']));
         self::assertTrue($service->containsPersonalToken(['nested' => ['phone' => 'mago://phone_3']]));
         self::assertTrue($service->containsPersonalToken(['legacy' => 'Mail [email_1] now']));
+        self::assertTrue($service->containsPersonalToken(['comment' => 'About mago://order_1']));
+        self::assertTrue($service->containsPersonalToken(['place' => 'Lives in mago://city_2']));
         self::assertFalse($service->containsPersonalToken(['link' => 'See mago://url_2']));
-        self::assertFalse($service->containsPersonalToken(['comment' => 'About mago://order_1']));
+        self::assertFalse($service->containsPersonalToken(['legacy_link' => 'See [url_2]']));
+        self::assertFalse($service->containsPersonalToken(['content' => 'Plain [text] and mago://']));
     }
 
     #[Test]
@@ -123,83 +126,54 @@ class PrivacyServiceTest extends TestCase
     }
 
     #[Test]
-    public function itRehydratesATokenThatSplitsAcrossStreamedChunks(): void
+    public function itHoldsBackATokenThatSplitsAcrossStreamedChunks(): void
     {
         $service = $this->service(new ConversationVault());
-        $service->scrubMessages([['role' => 'user', 'content' => 'mail jan@example.com']]);
 
-        [$emit1, $carry1] = $service->rehydrateStreamDelta('', 'Mailing mago://email');
-        [$emit2, $carry2] = $service->rehydrateStreamDelta($carry1, '_1 now');
+        [$emit1, $carry1] = $service->splitStreamDelta('', 'Mailing mago://email');
+        [$emit2, $carry2] = $service->splitStreamDelta($carry1, '_1 now');
 
         self::assertSame('Mailing ', $emit1);
-        self::assertSame('jan@example.com now', $emit2);
+        self::assertSame('mago://email_1 now', $emit2);
         self::assertSame('', $carry2);
-    }
-
-    #[Test]
-    public function aTokenSplitRightAfterItsFirstLetterIsStillRehydrated(): void
-    {
-        $service = $this->service(new ConversationVault());
-        $service->scrubMessages([['role' => 'user', 'content' => 'mail jan@example.com']]);
-
-        [$emit1, $carry1] = $service->rehydrateStreamDelta('', 'Mail m');
-        [$emit2, $carry2] = $service->rehydrateStreamDelta($carry1, 'ago://email_1 now');
-
-        self::assertSame('Mail ', $emit1);
-        self::assertSame('jan@example.com now', $emit2);
-        self::assertSame('', $carry2);
-    }
-
-    #[Test]
-    public function aUrlTokenSplitAcrossChunksIsHeldBackUntilItIsWhole(): void
-    {
-        $vault = new ConversationVault();
-        $service = $this->service($vault);
-        $url = 'https://shop.test/admin/sales/order/view/order_id/660/key/abc/';
-        $token = $vault->tokenise($url, 'url');
-
-        $emitted = '';
-        $carry = '';
-        // Chunk boundaries the provider chose, cutting the token in three.
-        foreach (['Bekijk de details [hier](ma', 'go://url', '_1).'] as $delta) {
-            [$text, $carry] = $service->rehydrateStreamDelta($carry, $delta);
-            $emitted .= $text;
-        }
-        $emitted .= $service->displayText($carry);
-
-        self::assertSame('Bekijk de details [hier](' . $url . ').', $emitted);
-        self::assertStringNotContainsString($token, $emitted);
     }
 
     /**
      * A chunk can end on the bare "m" a token starts with; that "m" has to be held back as well,
-     * or the rest of the token goes out on its own and is never rehydrated.
+     * or the rest of the token goes out on its own and the panel never recognises it.
      */
     #[Test]
-    public function aTokenCutRightAfterItsFirstLetterIsStillRehydrated(): void
+    public function itHoldsBackATokenCutRightAfterItsFirstLetter(): void
+    {
+        $service = $this->service(new ConversationVault());
+
+        [$emit1, $carry1] = $service->splitStreamDelta('', 'Mail m');
+        [$emit2, $carry2] = $service->splitStreamDelta($carry1, 'ago://email_1 now');
+
+        self::assertSame('Mail ', $emit1);
+        self::assertSame('mago://email_1 now', $emit2);
+        self::assertSame('', $carry2);
+    }
+
+    #[Test]
+    public function itNeverRehydratesTheStreamedText(): void
     {
         $vault = new ConversationVault();
         $service = $this->service($vault);
-        $name = $vault->tokenise('Luuk van der Berg', 'name');
+        $token = $vault->tokenise('**bold** <img src=x onerror=alert(1)>', 'reviewtext');
 
-        $emitted = '';
-        $carry = '';
-        foreach (['{"title":"m', 'ago://name', '_1"}'] as $delta) {
-            [$text, $carry] = $service->rehydrateStreamDelta($carry, $delta);
-            $emitted .= $text;
-        }
-        $emitted .= $service->displayText($carry);
+        [$emit, $carry] = $service->splitStreamDelta('', 'The review says ' . $token . '.');
 
-        self::assertSame('{"title":"Luuk van der Berg"}', $emitted);
-        self::assertStringNotContainsString($name, $emitted);
+        self::assertSame('The review says ' . $token . '.', $emit);
+        self::assertSame('', $carry);
     }
 
     /**
-     * A widget block carries several tokens; whatever chunk size the provider picks, none of them
-     * may reach the admin tokenised.
+     * A widget block carries several tokens; whatever chunk size the provider picks, every token
+     * reaches the panel whole, with its value in the same delta.
      */
     #[Test]
-    public function everyTokenInAStreamedWidgetIsRehydratedWhateverTheChunkSize(): void
+    public function everyTokenInAStreamedWidgetArrivesWholeWithItsValueWhateverTheChunkSize(): void
     {
         $vault = new ConversationVault();
         $service = $this->service($vault);
@@ -210,15 +184,56 @@ class PrivacyServiceTest extends TestCase
 
         foreach (range(1, 12) as $size) {
             $emitted = '';
+            $values = [];
             $carry = '';
             foreach (str_split($answer, $size) as $delta) {
-                [$text, $carry] = $service->rehydrateStreamDelta($carry, $delta);
+                [$text, $carry] = $service->splitStreamDelta($carry, $delta);
                 $emitted .= $text;
+                $values += $service->tokenValues($text);
             }
-            $emitted .= $service->displayText($carry);
+            $emitted .= $carry;
+            $values += $service->tokenValues($carry);
 
-            self::assertSame($service->displayText($answer), $emitted, "Chunk size {$size}");
+            self::assertSame($answer, $emitted, "Chunk size {$size}");
+            self::assertEqualsCanonicalizing(
+                [$name => 'Luuk van der Berg', $url => 'https://shop.test/admin/customer/index/edit/id/2/key/abc/'],
+                $values,
+                "Chunk size {$size}"
+            );
         }
+    }
+
+    #[Test]
+    public function itGivesTheValueOfEachResolvableTokenAndLeavesUnknownTokensOut(): void
+    {
+        $vault = new ConversationVault();
+        $service = $this->service($vault);
+        $email = $vault->tokenise('jan@example.com', 'email');
+        $review = $vault->tokenise('Great [click](https://evil.example)', 'reviewtext');
+
+        $values = $service->tokenValues("Mail {$email} about {$review}, not mago://customer_9 or [order_4].");
+
+        self::assertSame([$email => 'jan@example.com', $review => 'Great [click](https://evil.example)'], $values);
+    }
+
+    #[Test]
+    public function itGivesNoValuesForATextWithoutTokens(): void
+    {
+        $service = $this->service(new ConversationVault());
+
+        self::assertSame([], $service->tokenValues('Nothing masked here.'));
+    }
+
+    #[Test]
+    public function customerWrittenTokensAreRefusedForWrites(): void
+    {
+        $service = $this->service(new ConversationVault());
+
+        self::assertTrue($service->containsCustomerWrittenToken(['content' => 'Quote: mago://reviewtext_1']));
+        self::assertTrue($service->containsCustomerWrittenToken(['nested' => ['title' => 'mago://reviewtitle_2']]));
+        self::assertTrue($service->containsCustomerWrittenToken(['author' => 'By [nickname_3]']));
+        self::assertFalse($service->containsCustomerWrittenToken(['content' => 'Mail mago://email_1 now']));
+        self::assertFalse($service->containsCustomerWrittenToken(['review_id' => 'mago://review_1']));
     }
 
     #[Test]
