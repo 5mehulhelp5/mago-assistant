@@ -30,7 +30,8 @@ class InternalApiClient
         private readonly Json $json,
         private readonly DebugLogger $debugLogger,
         private readonly ErrorLogger $errorLogger,
-        private readonly CleartextTokenWarning $cleartextTokenWarning
+        private readonly CleartextTokenWarning $cleartextTokenWarning,
+        private readonly InternalApiLogData $logData
     ) {
     }
 
@@ -206,12 +207,10 @@ class InternalApiClient
         $token = $this->getToken($adminUserId);
         $this->cleartextTokenWarning->warnIfNeeded($url);
 
-        $this->debugLogger->addLog('InternalAPI Request', [
-            'method' => $method,
-            'url' => $url,
-            'admin_user_id' => $adminUserId,
-            'body' => $body ? $this->json->serialize($body) : null,
-        ]);
+        $this->debugLogger->addLog(
+            'InternalAPI Request',
+            $this->logData->forRequest($method, $url, $adminUserId, $body)
+        );
 
         $ch = curl_init();
         curl_setopt_array($ch, $this->requestOptions->build(
@@ -230,14 +229,10 @@ class InternalApiClient
             return ['error' => 'Internal API request failed: ' . $curlError];
         }
 
-        $logData = [
-            'status' => $statusCode,
-            'body_length' => strlen((string)$responseBody),
-        ];
-        if ($statusCode >= 400) {
-            $logData['body'] = substr((string)$responseBody, 0, 1000);
-        }
-        $this->debugLogger->addLog('InternalAPI Response', $logData);
+        $this->debugLogger->addLog(
+            'InternalAPI Response',
+            $this->logData->forResponse($statusCode, (string)$responseBody, (float)curl_getinfo($ch, CURLINFO_TOTAL_TIME))
+        );
 
         if ($statusCode >= 300 && $statusCode < 400) {
             $this->errorLogger->addLog('InternalAPI redirect detected', [
