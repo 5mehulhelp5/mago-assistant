@@ -11,9 +11,10 @@ use MagoAssistant\Mago\Api\Config\RepositoryInterface as ConfigRepositoryInterfa
 use Psr\Log\LoggerInterface;
 
 /**
- * Writes to var/log/mago-debug.log, but only while "Debug Mode" is on: every call is a no-op
+ * Writes to var/log/mago-debug-<date>.log, but only while "Debug Mode" is on: every call is a no-op
  * otherwise, so call sites never have to gate themselves. The flag is read once per request.
- * Callers log metadata (ids, sizes, statuses), never message bodies, names or vault tokens.
+ * Callers log metadata (ids, sizes, statuses), never names or vault tokens; the one message text
+ * logged, the chat request and slash command, goes through PrivacyService::maskText first.
  */
 class DebugLogger
 {
