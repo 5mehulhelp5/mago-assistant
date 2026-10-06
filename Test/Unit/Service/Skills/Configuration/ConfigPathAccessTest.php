@@ -8,10 +8,13 @@ namespace MagoAssistant\Mago\Test\Unit\Service\Skills\Configuration;
 
 use Magento\Config\Model\Config\Backend\Encrypted;
 use Magento\Config\Model\Config\TypePool;
+use Magento\Framework\App\Config\Value;
 use MagoAssistant\Mago\Service\Skills\Configuration\ConfigPathAccess;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeConfigStructure;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeDesignConfigMetadata;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeEncryptedBackend;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeObjectManagerConfig;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -159,7 +162,8 @@ final class ConfigPathAccessTest extends TestCase
             new FakeConfigStructure(),
             new FakeAuthorization(),
             new FakeDesignConfigMetadata(['design/footer/copyright']),
-            new TypePool()
+            new TypePool(),
+            new FakeObjectManagerConfig()
         );
 
         self::assertTrue($access->isDeclared('design/footer/copyright'));
@@ -201,6 +205,37 @@ final class ConfigPathAccessTest extends TestCase
     }
 
     #[Test]
+    public function itBlocksAPathStoredByASubclassOrVirtualTypeOfTheEncryptedBackend(): void
+    {
+        $access = $this->accessTo(
+            (new FakeConfigStructure())
+                ->withFieldData('acme/connect/merchant', ['backend_model' => FakeEncryptedBackend::class])
+                ->withFieldData('acme/connect/account', ['backend_model' => 'AcmeConnectAccountBackend'])
+                ->withFieldData('acme/connect/label', ['backend_model' => 'AcmeConnectLabelBackend']),
+            null,
+            new FakeObjectManagerConfig([
+                'AcmeConnectAccountBackend' => Encrypted::class,
+                'AcmeConnectLabelBackend' => Value::class,
+            ])
+        );
+
+        self::assertTrue($access->isBlocked('acme/connect/merchant'));
+        self::assertTrue($access->isBlocked('acme/connect/account'));
+        self::assertFalse($access->isBlocked('acme/connect/label'));
+    }
+
+    #[Test]
+    public function itBlocksAPathWhoseBackendModelResolvesToNoClass(): void
+    {
+        $access = $this->accessTo(
+            (new FakeConfigStructure())
+                ->withFieldData('acme/connect/merchant', ['backend_model' => 'Acme\\Gone\\Backend'])
+        );
+
+        self::assertTrue($access->isBlocked('acme/connect/merchant'));
+    }
+
+    #[Test]
     public function aPathMagentoMarksSensitiveIsSensitiveButNotBlocked(): void
     {
         $access = $this->accessTo(
@@ -213,13 +248,17 @@ final class ConfigPathAccessTest extends TestCase
         self::assertFalse($access->isSensitive('general/store_information/name'));
     }
 
-    private function accessTo(FakeConfigStructure $structure, ?TypePool $typePool = null): ConfigPathAccess
-    {
+    private function accessTo(
+        FakeConfigStructure $structure,
+        ?TypePool $typePool = null,
+        ?FakeObjectManagerConfig $objectManagerConfig = null
+    ): ConfigPathAccess {
         return new ConfigPathAccess(
             $structure,
             new FakeAuthorization(),
             new FakeDesignConfigMetadata(),
-            $typePool ?? new TypePool()
+            $typePool ?? new TypePool(),
+            $objectManagerConfig ?? new FakeObjectManagerConfig()
         );
     }
 }

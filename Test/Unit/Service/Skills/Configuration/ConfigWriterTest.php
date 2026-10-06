@@ -22,6 +22,7 @@ use MagoAssistant\Mago\Test\Unit\Fakes\FakeAclAuthorization;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeConfigStructure;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeDesignConfigMetadata;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeObjectManagerConfig;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -365,7 +366,8 @@ class ConfigWriterTest extends TestCase
                     ->withCloningGroup('general/cloned'),
                 $authorization ?? new FakeAuthorization(),
                 new FakeDesignConfigMetadata(['design/footer/copyright', 'design/head/includes']),
-                $typePool ?? new TypePool()
+                $typePool ?? new TypePool(),
+                new FakeObjectManagerConfig()
             ),
             new ConfigWriteImpact($typePool ?? new TypePool()),
             $scopeConfig ?? $this->createStub(ScopeConfigInterface::class)

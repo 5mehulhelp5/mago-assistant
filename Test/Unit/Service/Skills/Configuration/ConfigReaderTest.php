@@ -20,6 +20,7 @@ use MagoAssistant\Mago\Test\Unit\Fakes\FakeAclAuthorization;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeConfigStructure;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeDesignConfigMetadata;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeObjectManagerConfig;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -313,7 +314,8 @@ class ConfigReaderTest extends TestCase
                 ->withSection('trans_email', 'Magento_Config::trans_email'),
             $authorization ?? new FakeAuthorization(),
             new FakeDesignConfigMetadata(),
-            $typePool ?? new TypePool()
+            $typePool ?? new TypePool(),
+            new FakeObjectManagerConfig()
         );
     }
 }

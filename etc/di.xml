@@ -552,9 +552,21 @@
             <argument name="structureFactory" xsi:type="object">MagoAssistantMagoAdminhtmlConfigStructureFactory</argument>
         </arguments>
     </virtualType>
+    <virtualType name="MagoAssistantMagoAdminhtmlConfig" type="Magento\Config\Model\Config">
+        <arguments>
+            <argument name="configStructure" xsi:type="object">MagoAssistantMagoAdminhtmlConfigStructure</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="MagoAssistantMagoAdminhtmlConfigFactory" type="Magento\Config\Model\ConfigFactory">
+        <arguments>
+            <argument name="instanceName" xsi:type="string">MagoAssistantMagoAdminhtmlConfig</argument>
+        </arguments>
+    </virtualType>
     <type name="MagoAssistant\Mago\Service\Skills\Configuration\ConfigValueSaver">
         <arguments>
             <argument name="preparedValueFactory" xsi:type="object">MagoAssistantMagoPreparedValueFactory</argument>
+            <argument name="structure" xsi:type="object">MagoAssistantMagoAdminhtmlConfigStructure</argument>
+            <argument name="configFactory" xsi:type="object">MagoAssistantMagoAdminhtmlConfigFactory</argument>
         </arguments>
     </type>
 </config>

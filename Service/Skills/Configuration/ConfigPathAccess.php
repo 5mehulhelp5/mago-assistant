@@ -10,6 +10,7 @@ use Magento\Config\Model\Config\Backend\Encrypted;
 use Magento\Config\Model\Config\Structure;
 use Magento\Config\Model\Config\TypePool;
 use Magento\Framework\AuthorizationInterface;
+use Magento\Framework\ObjectManager\ConfigInterface as ObjectManagerConfig;
 use Magento\Theme\Model\Design\Config\MetadataProviderInterface;
 
 /**
@@ -54,7 +55,8 @@ final class ConfigPathAccess
         private readonly Structure $structure,
         private readonly AuthorizationInterface $authorization,
         private readonly MetadataProviderInterface $designConfig,
-        private readonly TypePool $typePool
+        private readonly TypePool $typePool,
+        private readonly ObjectManagerConfig $objectManagerConfig
     ) {
     }
 
@@ -213,16 +215,25 @@ final class ConfigPathAccess
     }
 
     /**
-     * Magento's Encrypted backend or its subclasses, and a module's own encrypting backend, which
-     * need not extend it (MageOS AiBase's EncryptedServices keeps the AI provider keys).
+     * Magento's Encrypted backend, its subclasses and virtual types of either, and a module's own
+     * encrypting backend, which need not extend it (MageOS AiBase's EncryptedServices keeps the AI
+     * provider keys). A backend model that resolves to no class counts as encrypting: what it would
+     * do with the value cannot be told.
      *
      * @param string $backendModel
      * @return bool
      */
     private function isEncrypting(string $backendModel): bool
     {
-        return $backendModel !== ''
-            && (is_a($backendModel, Encrypted::class, true) || str_contains(strtolower($backendModel), 'encrypt'));
+        $backendModel = ltrim($backendModel, '\\');
+        if ($backendModel === '') {
+            return false;
+        }
+        $backendClass = ltrim($this->objectManagerConfig->getInstanceType($backendModel), '\\');
+
+        return !class_exists($backendClass)
+            || is_a($backendClass, Encrypted::class, true)
+            || str_contains(strtolower($backendModel), 'encrypt');
     }
 
     /**
