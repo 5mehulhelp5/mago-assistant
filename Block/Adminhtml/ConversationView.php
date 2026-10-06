@@ -343,6 +343,10 @@ class ConversationView extends Template
      */
     public function formatJsonForScript(mixed $data): string
     {
+        if ($data === null || $data === '') {
+            return '';
+        }
+
         if (is_string($data)) {
             try {
                 $data = json_decode($data, true, 512, JSON_THROW_ON_ERROR);

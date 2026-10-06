@@ -59,6 +59,13 @@ class ConversationViewTest extends TestCase
     }
 
     #[Test]
+    public function itLeavesAnEmptyPayloadEmptyForScriptOutput(): void
+    {
+        self::assertSame('', $this->block()->formatJsonForScript(''));
+        self::assertSame('', $this->block()->formatJsonForScript(null));
+    }
+
+    #[Test]
     public function itKeepsReadableJsonForEscapedOutput(): void
     {
         $output = $this->block()->formatJson('{"url":"https://example.com/a","name":"Café"}');
