@@ -9,7 +9,7 @@
         "bodyPatterns": [
           {"contains": "E2E order note check"},
           {"contains": "\"role\":\"tool\""},
-          {"matches": "(?s).*success\\W{1,6}true.*"}
+          {"matches": "(?s).*success(\\\\u0022|\\\\\"|\")+:true.*"}
         ]
       },
       "response": {
