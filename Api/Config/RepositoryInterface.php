@@ -30,8 +30,6 @@ interface RepositoryInterface
     public const XML_PATH_ACCENT_COLOR = 'mago/chat/accent_color';
     public const XML_PATH_TEXT_COLOR = 'mago/chat/text_color';
     public const XML_PATH_ASSISTANT_NAME = 'mago/chat/assistant_name';
-    public const XML_PATH_INTERNAL_URL = 'mago/api/internal_url';
-    public const XML_PATH_INTERNAL_SSL_VERIFY = 'mago/api/internal_ssl_verify';
     public const XML_PATH_LANGUAGE = 'mago/chat/language';
     public const XML_PATH_ANSWER_WIDGETS = 'mago/chat/answer_widgets';
     public const XML_PATH_ADDONS_ENABLED = 'mago/addons/enabled';
@@ -160,16 +158,6 @@ interface RepositoryInterface
      * @return bool
      */
     public function isAnswerWidgetsEnabled(): bool;
-
-    /**
-     * @return string
-     */
-    public function getInternalUrl(): string;
-
-    /**
-     * @return bool
-     */
-    public function isInternalSslVerifyEnabled(): bool;
 
     /**
      * Whether the dashboard may show the add-on feed
