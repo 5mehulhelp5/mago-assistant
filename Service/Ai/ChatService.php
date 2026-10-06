@@ -795,12 +795,11 @@ class ChatService implements ChatServiceInterface
         $classes = $tool->getFieldClassification((string)($toolCall['input']['action'] ?? ''));
 
         try {
-            if ($this->configRepository->isDebugEnabled()) {
-                $this->debugLogger->addLog('Tool Execute', [
-                    'tool' => $toolCall['name'],
-                    'input' => $toolCall['input'] ?? [],
-                ]);
-            }
+            $this->debugLogger->addLog('Tool Execute', [
+                'tool' => $toolCall['name'],
+                'action' => $toolCall['input']['action'] ?? null,
+                'input_keys' => array_keys($toolCall['input'] ?? []),
+            ]);
             $input = $toolCall['input'] ?? [];
             // An admin URL token never rehydrates into a write, resolvable or not: it embeds the
             // admin secret key. Nor does text a customer wrote. Other masked values do rehydrate
@@ -839,9 +838,11 @@ class ChatService implements ChatServiceInterface
             // that follows and take it out of what the model sees, so the panel shows the link
             // deterministically instead of relying on the model to copy the token into its prose.
             $result = $this->collectEntityLinks($tool, $input, $result);
-            if ($this->configRepository->isDebugEnabled()) {
-                $this->debugLogger->addLog('Tool Result', ['tool' => $toolCall['name'], 'result' => $result]);
-            }
+            $this->debugLogger->addLog('Tool Result', [
+                'tool' => $toolCall['name'],
+                'is_error' => isset($result['error']),
+                'field_count' => count($result),
+            ]);
             return $this->capToolResult($this->withClientDirective($result, $directive), $toolCall['name']);
         } catch (\Throwable $e) {
             $error = $this->errorReporter->reportToolFailure('Tool Error ' . $toolCall['name'], $e);
@@ -872,13 +873,11 @@ class ChatService implements ChatServiceInterface
             return $this->withClientDirective($result, $directive);
         }
 
-        if ($this->configRepository->isDebugEnabled()) {
-            $this->debugLogger->addLog('Tool Result truncated', [
-                'tool' => $toolName,
-                'bytes' => strlen($json),
-                'max_bytes' => $maxBytes,
-            ]);
-        }
+        $this->debugLogger->addLog('Tool Result truncated', [
+            'tool' => $toolName,
+            'bytes' => strlen($json),
+            'max_bytes' => $maxBytes,
+        ]);
 
         $output = mb_strcut($json, 0, $maxBytes);
 
@@ -1010,9 +1009,7 @@ class ChatService implements ChatServiceInterface
                 'role' => 'system',
                 'content' => "[Instructions for {$toolName}]\n{$instructions}",
             ];
-            if ($this->configRepository->isDebugEnabled()) {
-                $this->debugLogger->addLog('JIT Instructions', ['tool' => $toolName]);
-            }
+            $this->debugLogger->addLog('JIT Instructions', ['tool' => $toolName]);
         }
         $instructedTools[$toolName] = true;
     }
