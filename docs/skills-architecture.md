@@ -252,7 +252,7 @@ Some checks Magento only registers for `webapi_rest`. In-process they are replac
 
 | REST-only plugin | In-process |
 |------------------|------------|
-| `ProductAuthorization`, `PageAclPlugin` (design fields need `Magento_Catalog::edit_product_design` / `Magento_Cms::save_design`) | `Guard\DesignFieldGuard`, configured in `di.xml` per repository. It refuses any design field sent with a value, so it is a little stricter than the core check, which accepts a value equal to the saved one. |
+| `ProductAuthorization`, `PageAclPlugin` (design fields need `Magento_Catalog::edit_product_design` / `Magento_Cms::save_design`) | `Guard\ProductDesignGuard` and `Guard\CmsPageDesignGuard` hand the product or page that `ServiceInputProcessor` built to Magento's own `Product\Authorization::authorizeSavingOf()` / `Page\Authorization::authorizeFor()`, created with the admin's ACL. Same outcome as REST, whatever spelling the body uses: a value equal to the saved one passes, a change is refused. The refusal keeps core's message and names the missing resource. |
 | Theme `Data\Collection` plugin, disabled in `webapi_rest` (outside it, a current page past the last one is reset to page 1) | `PastLastPageNormalizer` empties `items` when the output's `search_criteria.current_page` lies beyond `total_count` / `page_size`, so a `getList` route answers page 999 with no items, as REST does, instead of with page 1. |
 | `APISourceItemIndexerPlugin` (reindexes a configurable parent's stock after a child is linked) | `FollowUp\ConfigurableStockIndex` runs the same plugin after `configurable-products/{sku}/child` when the chat does not run in `webapi_rest` and the inventory module is enabled. |
 
@@ -271,7 +271,7 @@ The other `webapi_rest`-only plugins on the services the tools call were checked
 | Catalog `ProductOutputProcessor`, index `TableResolver` plugins | Output shaping (drops empty `tier_prices`/`product_links` of the product just sent) and storefront index table names, which the product repository does not read. |
 | InventoryCatalog `CreateSourceItemsPlugin` | Moves source items when a SKU changes; no tool renames a SKU. |
 
-Add your own with a `ServiceCallGuardInterface` (runs before the service) or a `ServiceCallFollowUpInterface` (runs after it succeeded) in the `guards` or `followUps` argument of `ServiceDispatcher`.
+Add your own with a `ServiceCallGuardInterface` (runs after the route ACL and input conversion, right before the service, with the converted arguments) or a `ServiceCallFollowUpInterface` (runs after it succeeded) in the `guards` or `followUps` argument of `ServiceDispatcher`.
 
 Things to keep in mind as a tool author: a call shares the PHP process with the chat, so repositories that cache instances (the product repository, the order registry) can hand back an object loaded earlier in the same turn; pass `forceReload` where you read back what you just wrote. A PHP fatal error inside a service ends the whole chat request, and there is no per-call timeout. In unit tests, use `Test/Unit/Fakes/FakeInternalApiClient` and assert on the calls it recorded.
 

@@ -16,8 +16,9 @@ use MagoAssistant\Mago\Service\Api\InProcess\Guard\ServiceCallGuardInterface;
 
 /**
  * Runs a web API route in this PHP process for one admin user, doing what the REST front controller
- * does for a synchronous request: store from the URL, route match, ACL, input conversion, the service
- * call and output conversion, with the paging REST answers. The ObjectManager resolves the service class the route names, exactly as
+ * does for a synchronous request: store from the URL, route match, ACL, input conversion, the checks
+ * Magento only runs in webapi_rest (the guards), the service call and output conversion, with the
+ * paging REST answers. The ObjectManager resolves the service class the route names, exactly as
  * Magento\Webapi\Controller\Rest\SynchronousRequestProcessor does.
  */
 class ServiceDispatcher
@@ -67,9 +68,9 @@ class ServiceDispatcher
         $authorization = $this->authorizationFactory->create($call->adminUserId);
         $route = $this->routeResolver->resolve($call);
         $this->routeAuthorizer->assertAllowed($route, $authorization);
-        $this->runGuards($route, $authorization);
 
         $arguments = $this->getArguments($route);
+        $this->runGuards($route, $arguments, $authorization);
         $output = $this->objectManager->get($route->serviceClass)->{$route->serviceMethod}(...$arguments);
         $this->runFollowUps($route, $arguments);
 
@@ -88,10 +89,13 @@ class ServiceDispatcher
         return $this->serviceInputProcessor->process($route->serviceClass, $route->serviceMethod, $route->inputData);
     }
 
-    private function runGuards(ResolvedRoute $route, AuthorizationInterface $authorization): void
+    /**
+     * @param array<int, mixed> $arguments
+     */
+    private function runGuards(ResolvedRoute $route, array $arguments, AuthorizationInterface $authorization): void
     {
         foreach ($this->guards as $guard) {
-            $guard->guard($route, $authorization);
+            $guard->guard($route, $arguments, $authorization);
         }
     }
 
