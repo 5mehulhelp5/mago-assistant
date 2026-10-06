@@ -83,6 +83,9 @@ class Confirm extends Action implements HttpPostActionInterface
             // Claimed before anything runs, so a second click or a parallel REST confirm gets an
             // "already handled" error instead of running the same writes again
             $message = $this->confirmationClaim->claimToConfirm($messageId, $adminUserId);
+            // Claimed means it is never offered again, so a closed tab must not cut the batch short
+            // before every write ran and its outcome was stored
+            ignore_user_abort(true);
 
             $toolCalls = $message['tool_calls'] ?? [];
             if (is_string($toolCalls)) {
