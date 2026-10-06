@@ -20,6 +20,8 @@ class FakeConfigRepository implements RepositoryInterface
     private bool $reindexAllowed = false;
     private bool $isDebugEnabled = false;
     private int $debugEnabledReads = 0;
+    private string $docsSourceRepo = '';
+    private string $docsRef = '';
 
     public function withDebugEnabled(bool $isEnabled): self
     {
@@ -203,19 +205,27 @@ class FakeConfigRepository implements RepositoryInterface
         return $this;
     }
 
+    public function withDocsSource(string $repo, string $ref): self
+    {
+        $this->docsSourceRepo = $repo;
+        $this->docsRef = $ref;
+
+        return $this;
+    }
+
     public function isDocsEnabled(): bool
     {
-        return false;
+        return $this->docsSourceRepo !== '';
     }
 
     public function getDocsSourceRepo(): string
     {
-        return '';
+        return $this->docsSourceRepo;
     }
 
     public function getDocsRef(): string
     {
-        return '';
+        return $this->docsRef;
     }
 
     public function getDocsTopK(): int

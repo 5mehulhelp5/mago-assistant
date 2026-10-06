@@ -23,6 +23,7 @@ use MagoAssistant\Mago\Service\Form\PageContextNormalizer;
 class Confirm extends Action implements HttpPostActionInterface
 {
     use FormKeyJsonValidation;
+    use ReleasesSessionLock;
 
     public const ADMIN_RESOURCE = 'MagoAssistant_Mago::assistant_write';
 
@@ -54,6 +55,7 @@ class Confirm extends Action implements HttpPostActionInterface
             ob_end_clean();
         }
         ob_implicit_flush(true);
+        $this->releaseSessionLock();
 
         try {
             $rawBody = $this->getRequest()->getContent();
