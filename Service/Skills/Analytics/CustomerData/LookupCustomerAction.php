@@ -59,9 +59,10 @@ class LookupCustomerAction implements ActionInterface
 
     public function getFieldClassification(): array
     {
-        // Direct identifiers are tokenised, not dropped: the provider sees [name_1] and the panel
-        // shows the admin the real value. City and country stay public so "which customers are in
-        // X" keeps working.
+        // Direct identifiers are tokenised, not dropped: the provider sees mago://name_1 and the
+        // panel shows the admin the real value. The city is part of the address, so it is tokenised
+        // too; one city always gets the same token, so "which customers are in X" still groups.
+        // The country stays public.
         return [
             'admin_url' => [PiiClass::TOKENISE, 'url'],
             'entity_id' => [PiiClass::TOKENISE, 'customer'],
@@ -69,7 +70,7 @@ class LookupCustomerAction implements ActionInterface
             'email' => [PiiClass::TOKENISE, 'email'],
             'telephone' => [PiiClass::TOKENISE, 'phone'],
             'country' => [PiiClass::PUBLIC],
-            'city' => [PiiClass::PUBLIC],
+            'city' => [PiiClass::TOKENISE, 'city'],
             'registered' => [PiiClass::PUBLIC],
             // The miss message quotes what the admin searched for, which is a name or an address.
             // An empty results list already says "nothing found".

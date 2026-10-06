@@ -192,13 +192,14 @@ class ChatService implements ChatServiceInterface
         $rePresented = false;
         $allToolCalls = [];
 
-        // Rehydrate the text the admin sees, holding a token that splits across chunks. Everything
-        // stored and replayed to the provider stays tokenised; only this display copy is rehydrated.
+        // The text the admin sees keeps its tokens, with the values beside them, so the panel can put
+        // each value in as text after rendering the markdown; a token that splits across chunks is
+        // held back until it is whole. Everything stored and replayed to the provider stays tokenised.
         /** @var string $carry */
         $carry = '';
         $flushCarry = function () use ($onChunk, &$carry): void {
             if ($carry !== '') {
-                $onChunk('text', ['text' => $this->privacyService->displayText($carry)]);
+                $onChunk('text', $this->displayDelta($carry));
                 $carry = '';
             }
         };
@@ -209,9 +210,9 @@ class ChatService implements ChatServiceInterface
 
                 return;
             }
-            [$emit, $carry] = $this->privacyService->rehydrateStreamDelta($carry, (string)($data['text'] ?? ''));
+            [$emit, $carry] = $this->privacyService->splitStreamDelta($carry, (string)($data['text'] ?? ''));
             if ($emit !== '') {
-                $onChunk('text', ['text' => $emit]);
+                $onChunk('text', $this->displayDelta($emit));
             }
         };
 
@@ -244,8 +245,8 @@ class ChatService implements ChatServiceInterface
                 if ($linkMd !== '') {
                     $response['content'] = $this->appendMarkdown((string)($response['content'] ?? ''), $linkMd);
                     // The model's own text already streamed; add the link as one more display delta,
-                    // rehydrated to the real signed url the same way every other display copy is.
-                    $onChunk('text', ['text' => "\n\n" . $this->privacyService->displayText($linkMd)]);
+                    // carrying the real signed url the same way every other display delta does.
+                    $onChunk('text', $this->displayDelta("\n\n" . $linkMd));
                 }
                 return $response;
             }
@@ -330,6 +331,19 @@ class ChatService implements ChatServiceInterface
         }
 
         return ['content' => 'Maximum tool iterations reached.', 'tool_calls' => []];
+    }
+
+    /**
+     * A text event for the panel: the text with its tokens intact, and the value behind each
+     * resolvable token, which the panel inserts as text once the markdown is rendered.
+     *
+     * @return array{text: string, tokens?: array<string, string>}
+     */
+    private function displayDelta(string $text): array
+    {
+        $tokens = $this->privacyService->tokenValues($text);
+
+        return $tokens === [] ? ['text' => $text] : ['text' => $text, 'tokens' => $tokens];
     }
 
     /**
@@ -762,11 +776,17 @@ class ChatService implements ChatServiceInterface
             }
             $input = $toolCall['input'] ?? [];
             // An admin URL token never rehydrates into a write, resolvable or not: it embeds the
-            // admin secret key. Masked personal values do rehydrate (#114); the confirmation card
-            // shows them in plain text with a warning instead. Checked BEFORE rehydration.
+            // admin secret key. Nor does text a customer wrote. Other masked values do rehydrate
+            // (#114); the confirmation card shows them in plain text with a warning instead.
+            // Checked BEFORE rehydration.
             if (!$tool->isReadOnlyAction($input) && $this->privacyService->containsSensitiveToken($input)) {
                 return ['error' => 'This action would write an admin URL into data. Ask the '
                     . 'administrator to enter it directly on the form or in the request.'];
+            }
+            if (!$tool->isReadOnlyAction($input) && $this->privacyService->containsCustomerWrittenToken($input)) {
+                return ['error' => 'This action would copy text a customer wrote (a review, its title or '
+                    . 'the reviewer\'s nickname) into store data, which is never done. Ask the administrator '
+                    . 'to enter the text directly on the form or in the request.'];
             }
             // The model only ever saw tokens for scrubbed values, so swap them back to real values on
             // every execution path (read, stream, confirm); the persistent vault resolves tokens from
