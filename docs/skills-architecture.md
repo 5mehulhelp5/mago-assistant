@@ -398,8 +398,8 @@ Both tools implement `AvailabilityAwareToolInterface`, so the registry offers ex
 
 | Tool | Class | Read-only | Description |
 |------|-------|-----------|-------------|
-| `config_reader` | `Service\Skills\Configuration\ConfigReader` | Yes | Reads Magento system configuration by path and scope. Validates the scope against existing websites/store views and lists per-scope overrides of a default value. Each path is gated by the ACL resource its section declares in `system.xml` (`Magento_Payment::payment`, `Magento_Config::config_admin`, …), the same resource the admin needs to open that section under Stores > Configuration; a path outside any section is refused. Blocks sensitive paths (keys, secrets, passwords, tokens, payment config). |
-| `config_writer` | `Service\Skills\Configuration\ConfigWriter` | No | Writes Magento system configuration on a validated default/website/store view scope. Same per-section ACL gate and blocked-path protections, shared through `ConfigPathAccess`. Requires user confirmation. |
+| `config_reader` | `Service\Skills\Configuration\ConfigReader` | Yes | Reads Magento system configuration by path and scope. Validates the scope against existing websites/store views and lists per-scope overrides of a default value. Each path is gated by the ACL resource its section declares in `system.xml` (`Magento_Payment::payment`, `Magento_Config::config_admin`, …), the same resource the admin needs to open that section under Stores > Configuration; a path outside any section is refused. Refuses credentials (a path named like a key, secret, password, token or username, or stored by a password or encrypting field), payment config and Mago's own `mago/*` settings. A value Magento marks sensitive (contact addresses, carrier accounts, SMTP host: what `app:config:dump` keeps out of `config.php`) comes back as `masked_value`, which the privacy filter turns into a `mago://config_N` token; the admin reads the real value (#106). Whether a carrier account id is refused or masked follows its field type in `system.xml`. |
+| `config_writer` | `Service\Skills\Configuration\ConfigWriter` | No | Writes Magento system configuration on a validated default/website/store view scope. Same per-section ACL gate and blocked-path protections, shared through `ConfigPathAccess`; a sensitive value is echoed only as `masked_value`. Requires user confirmation. |
 | `cache_manager` | `Service\Skills\Configuration\CacheManager` | No | Flush all caches, flush specific cache types, or view cache status. Requires confirmation for flush actions. |
 | `indexer_manager` | `Service\Skills\Configuration\IndexerManager` | No | Reindex specific indexers or all, check indexer status, change indexer mode (realtime/schedule). Requires confirmation. |
 
@@ -902,9 +902,10 @@ The existing `ToolInterface` methods map 1:1 to MCP tool definitions, making thi
 
 | Data type | Protection mechanism |
 |-----------|---------------------|
-| API keys, secrets, passwords, tokens | Blocked path patterns in `ConfigReader` and `ConfigWriter` |
-| Payment configuration (`payment/*`) | Hardcoded path block in config tools |
-| Encrypted config values | Blocked by sensitive path detection |
+| API keys, secrets, passwords, tokens, usernames | Blocked path names in `ConfigPathAccess` (`ConfigReader`, `ConfigWriter`) |
+| Payment configuration (`payment/*`), Mago's own settings (`mago/*`) | Hardcoded path block in config tools |
+| Encrypted and password config fields | Blocked by the field's `system.xml` type or backend model |
+| Config values Magento marks sensitive | Returned as `masked_value`, tokenised by the privacy filter |
 | Customer PII (names, emails, addresses) | Privacy mode (see `privacy-mode/README.md`): every tool classifies its output fields; direct identifiers are stripped, bare linkable ids are tokenised, undeclared fields never pass |
 | Admin passwords | Never exposed via any tool |
 | Database credentials | Blocked by sensitive path detection |

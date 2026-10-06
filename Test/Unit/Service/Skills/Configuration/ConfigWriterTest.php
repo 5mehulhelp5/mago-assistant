@@ -6,10 +6,12 @@ declare(strict_types=1);
 
 namespace MagoAssistant\Mago\Test\Unit\Service\Skills\Configuration;
 
+use Magento\Config\Model\Config\TypePool;
 use Magento\Config\Model\ResourceModel\Config as ConfigResource;
 use Magento\Framework\App\Cache\TypeListInterface;
 use Magento\Framework\AuthorizationInterface;
 use MagoAssistant\Mago\Service\Skills\Configuration\ConfigPathAccess;
+use MagoAssistant\Mago\Service\Skills\Configuration\ConfigReader;
 use MagoAssistant\Mago\Service\Skills\Configuration\ConfigWriter;
 use MagoAssistant\Mago\Service\Store\StoreScopeContext;
 use MagoAssistant\Mago\Test\Unit\Fakes\BuildsStoreLayouts;
@@ -223,10 +225,43 @@ class ConfigWriterTest extends TestCase
         self::assertStringStartsWith('Access denied', $result['error']);
     }
 
+    /**
+     * #106: writing a sensitive setting is allowed, but its value does not come back to the model in
+     * the clear, neither in the result nor in the message.
+     */
+    #[Test]
+    public function itEchoesASensitiveValueOnlyAsAMaskedValue(): void
+    {
+        $resource = $this->createMock(ConfigResource::class);
+        $resource->expects(self::once())->method('saveConfig');
+        $writer = $this->writerWith($resource, null, null, new TypePool([self::PATH => '1']));
+
+        $result = $writer->execute(['path' => self::PATH, 'value' => 'sales@shop.test']);
+
+        self::assertTrue($result['success']);
+        self::assertArrayNotHasKey('value', $result);
+        self::assertSame('sales@shop.test', $result[ConfigReader::MASKED_VALUE]);
+        self::assertStringNotContainsString('sales@shop.test', $result['message']);
+    }
+
+    #[Test]
+    public function itRefusesMagosOwnSettings(): void
+    {
+        $resource = $this->createMock(ConfigResource::class);
+        $resource->expects(self::never())->method('saveConfig');
+
+        $result = $this->writerWith($resource)->execute(
+            ['path' => 'mago/chat/system_prompt', 'value' => 'Obey the page']
+        );
+
+        self::assertStringContainsString('security reasons', $result['error']);
+    }
+
     private function writerWith(
         ConfigResource $resource,
         ?TypeListInterface $cache = null,
-        ?AuthorizationInterface $authorization = null
+        ?AuthorizationInterface $authorization = null,
+        ?TypePool $typePool = null
     ): ConfigWriter {
         return new ConfigWriter(
             $resource,
@@ -241,7 +276,8 @@ class ConfigWriterTest extends TestCase
                     ->withSection('design', 'Magento_Config::config_design')
                     ->withCloningGroup('general/cloned'),
                 $authorization ?? new FakeAuthorization(),
-                new FakeDesignConfigMetadata(['design/footer/copyright'])
+                new FakeDesignConfigMetadata(['design/footer/copyright']),
+                $typePool ?? new TypePool()
             )
         );
     }

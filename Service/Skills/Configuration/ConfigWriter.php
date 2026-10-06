@@ -29,7 +29,7 @@ class ConfigWriter implements ToolInterface
 
     public function getDescription(): string
     {
-        return 'Modify Magento store configuration values. Requires merchant confirmation before execution. Sensitive paths are blocked.';
+        return 'Modify Magento store configuration values. Requires merchant confirmation before execution. Credentials, payment config and Mago\'s own settings are blocked.';
     }
 
     public function getParameterSchema(): array
@@ -95,7 +95,7 @@ class ConfigWriter implements ToolInterface
         $this->configResource->saveConfig($path, $value, $scope, $scopeId);
         $this->cacheTypeList->cleanType('config');
 
-        return [
+        $result = [
             'success' => true,
             'path' => $path,
             'value' => $value,
@@ -104,6 +104,14 @@ class ConfigWriter implements ToolInterface
             'scope_label' => $scopeLabel,
             'message' => sprintf('Configuration "%s" has been set to "%s" on %s', $path, $value, $scopeLabel),
         ];
+        // A sensitive value goes back to the model only under masked_value, which becomes a token.
+        if ($this->pathAccess->isSensitive($path)) {
+            unset($result['value']);
+            $result[ConfigReader::MASKED_VALUE] = $value;
+            $result['message'] = sprintf('Configuration "%s" has been set on %s', $path, $scopeLabel);
+        }
+
+        return $result;
     }
 
     public function isReadOnly(): bool
@@ -129,9 +137,8 @@ class ConfigWriter implements ToolInterface
 
     public function getFieldClassification(string $action = ''): array
     {
-        // Config values are dynamic paths; wildcard-public preserves today's denylist behavior,
-        // the config egress surface itself is tracked as issue #106 (denylist to allowlist).
         return [
+            ConfigReader::MASKED_VALUE => [PiiClass::TOKENISE, 'config'],
             'message' => [PiiClass::PUBLIC],
             PiiClass::ANY => [PiiClass::PUBLIC],
         ];

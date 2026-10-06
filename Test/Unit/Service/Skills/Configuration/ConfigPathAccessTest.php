@@ -6,6 +6,8 @@ declare(strict_types=1);
 
 namespace MagoAssistant\Mago\Test\Unit\Service\Skills\Configuration;
 
+use Magento\Config\Model\Config\Backend\Encrypted;
+use Magento\Config\Model\Config\TypePool;
 use MagoAssistant\Mago\Service\Skills\Configuration\ConfigPathAccess;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeConfigStructure;
@@ -107,6 +109,10 @@ final class ConfigPathAccessTest extends TestCase
             'a private setting' => ['catalog/review/private_notes'],
             'the encryption section' => ['system/encrypt/key'],
             'any payment method' => ['payment/checkmo/title'],
+            'a login name' => ['system/smtp/username'],
+            'a password spelled short' => ['smile_elasticsuite_core_base_settings/es_client/http_auth_pwd'],
+            'a bare section id' => ['mago'],
+            "Mago's own settings, which steer the assistant" => ['mago/chat/system_prompt'],
         ];
     }
 
@@ -152,7 +158,8 @@ final class ConfigPathAccessTest extends TestCase
         $access = new ConfigPathAccess(
             new FakeConfigStructure(),
             new FakeAuthorization(),
-            new FakeDesignConfigMetadata(['design/footer/copyright'])
+            new FakeDesignConfigMetadata(['design/footer/copyright']),
+            new TypePool()
         );
 
         self::assertTrue($access->isDeclared('design/footer/copyright'));
@@ -168,8 +175,51 @@ final class ConfigPathAccessTest extends TestCase
         self::assertFalse($access->isDeclared('google/gtag/other/any_name'));
     }
 
-    private function accessTo(FakeConfigStructure $structure): ConfigPathAccess
+    /**
+     * #106: a third-party module names its secret as it likes; the field it is stored by tells.
+     */
+    #[Test]
+    public function itBlocksAPathStoredByAPasswordOrEncryptedFieldWhateverItIsCalled(): void
     {
-        return new ConfigPathAccess($structure, new FakeAuthorization(), new FakeDesignConfigMetadata());
+        $access = $this->accessTo(
+            (new FakeConfigStructure())
+                ->withFieldData('acme/connect/login', ['type' => 'obscure'])
+                ->withFieldData('acme/connect/merchant', ['backend_model' => Encrypted::class])
+                ->withFieldData('acme/connect/pin', ['type' => 'password'])
+                ->withFieldData(
+                    'acme/connect/services',
+                    ['backend_model' => 'Acme\\Connect\\Backend\\EncryptedServices']
+                )
+                ->withFieldData('acme/connect/label', ['type' => 'text'])
+        );
+
+        self::assertTrue($access->isBlocked('acme/connect/login'));
+        self::assertTrue($access->isBlocked('acme/connect/merchant'));
+        self::assertTrue($access->isBlocked('acme/connect/pin'));
+        self::assertTrue($access->isBlocked('acme/connect/services'));
+        self::assertFalse($access->isBlocked('acme/connect/label'));
+    }
+
+    #[Test]
+    public function aPathMagentoMarksSensitiveIsSensitiveButNotBlocked(): void
+    {
+        $access = $this->accessTo(
+            new FakeConfigStructure(),
+            new TypePool(['trans_email/ident_sales/email' => '1'])
+        );
+
+        self::assertTrue($access->isSensitive('trans_email/ident_sales/email'));
+        self::assertFalse($access->isBlocked('trans_email/ident_sales/email'));
+        self::assertFalse($access->isSensitive('general/store_information/name'));
+    }
+
+    private function accessTo(FakeConfigStructure $structure, ?TypePool $typePool = null): ConfigPathAccess
+    {
+        return new ConfigPathAccess(
+            $structure,
+            new FakeAuthorization(),
+            new FakeDesignConfigMetadata(),
+            $typePool ?? new TypePool()
+        );
     }
 }
