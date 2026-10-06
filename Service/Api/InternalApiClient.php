@@ -83,8 +83,8 @@ class InternalApiClient implements InternalApiClientInterface
             'path' => $path,
             'store_code' => $call->storeCode,
             'admin_user_id' => $call->adminUserId,
-            'query' => $call->query,
-            'body' => $call->body,
+            'query_keys' => array_keys($call->query),
+            'body_keys' => array_keys($call->body),
         ]);
     }
 
