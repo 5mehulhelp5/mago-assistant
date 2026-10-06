@@ -53,8 +53,8 @@ class AdminAuthorizationFactory
         }
 
         return $this->userCollectionFactory->create()
-            ->addFieldToFilter('user_id', $adminUserId)
-            ->addFieldToFilter('is_active', 1)
+            ->addFieldToFilter('user_id', ['eq' => $adminUserId])
+            ->addFieldToFilter('is_active', ['eq' => 1])
             ->getSize() > 0;
     }
 }

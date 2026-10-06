@@ -60,6 +60,7 @@ class CreateRuleActionTest extends TestCase
             'discount_amount must be between 0 and 100 for a percentage discount',
             $result['error'] ?? null
         );
+        $this->assertNoRuleIsCreated();
     }
 
     /**
@@ -75,7 +76,6 @@ class CreateRuleActionTest extends TestCase
             'free_shipping' => ['free_shipping'],
             'unknown type' => ['nonsense'],
         ];
-        $this->assertNoRuleIsCreated();
     }
 
     #[Test]

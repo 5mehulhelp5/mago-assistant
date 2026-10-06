@@ -74,7 +74,7 @@ class RouteResolver
      * into the nested array Magento reads once they went through a query string.
      *
      * @param array<string, mixed> $query
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     private function normalizeQuery(array $query): array
     {

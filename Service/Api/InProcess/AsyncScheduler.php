@@ -72,9 +72,22 @@ class AsyncScheduler
     private function publishMass(string $topicName, array $arguments, ApiCall $call): AsyncResponseInterface
     {
         try {
-            return $this->massSchedule->publishMass($topicName, [$arguments], null, $call->adminUserId);
+            return $this->massSchedule->publishMass($topicName, [$arguments], null, (string)$call->adminUserId);
         } catch (BulkException $bulkException) {
-            return $bulkException->getData();
+            return $this->getRejectedResponse($bulkException);
         }
+    }
+
+    /**
+     * A rejected item still leaves a bulk behind; REST answers with its response, errors set to true.
+     */
+    private function getRejectedResponse(BulkException $bulkException): AsyncResponseInterface
+    {
+        $response = $bulkException->getData();
+        if (!$response instanceof AsyncResponseInterface) {
+            throw $bulkException;
+        }
+
+        return $response;
     }
 }
