@@ -72,9 +72,15 @@ body.is-capture details { display: none; }
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/less.js/4.2.0/less.min.js"></script>
 <script>
-    // mago-ui.js is an AMD module; this shim runs the factory and lets it set window.MagoUI.
-    window.define = function (deps, factory) { factory(); };
+    // mago-ui.js and safe-url.js are AMD modules; this shim runs each factory with the modules
+    // loaded before it, and mago-ui sets window.MagoUI.
+    window.magoModules = {};
+    window.define = function (deps, factory) {
+        var name = 'MagoAssistant_Mago/js/' + document.currentScript.src.split('/js/').pop().replace(/\.js$/, '');
+        window.magoModules[name] = factory.apply(null, deps.map(function (dep) { return window.magoModules[dep]; }));
+    };
 </script>
+<script src="../view/adminhtml/web/js/safe-url.js"></script>
 <script src="../view/adminhtml/web/js/mago-ui.js"></script>
 <script>
 (function () {

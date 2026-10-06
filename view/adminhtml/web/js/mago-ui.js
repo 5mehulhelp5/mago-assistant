@@ -27,7 +27,7 @@
  * Loaded through RequireJS as MagoAssistant_Mago/js/mago-ui; also exposed as
  * window.MagoUI for the plain-script chat panel.
  */
-define([], function () {
+define(['MagoAssistant_Mago/js/safe-url'], function (safeUrl) {
     'use strict';
 
     var SVG_NS = 'http://www.w3.org/2000/svg';
@@ -158,13 +158,10 @@ define([], function () {
     }
 
     // Links from specs may only point at web or in-admin URLs; anything else
-    // (javascript:, data:) is dropped so a clickable row cannot run code.
+    // (javascript:, data:, a protocol-relative //host) is dropped so a clickable
+    // row cannot run code or pass for a link inside the admin. See js/safe-url.js.
     function safeHref(href) {
-        if (typeof href !== 'string') {
-            return null;
-        }
-        var trimmed = href.trim();
-        return /^(https?:\/\/|\/|#|\?)/i.test(trimmed) ? trimmed : null;
+        return safeUrl.safeHref(href);
     }
 
     // Colours from specs are limited to literal colours and kit tokens, so a
@@ -675,7 +672,8 @@ define([], function () {
         var items = opts.items || [];
         var list = el('div', 'mago-entities', items.map(function (it) {
             var thumb;
-            if (safeHref(it.thumb)) {
+            // A thumb loads by itself, so an off-site one would tell that site the admin looked.
+            if (safeUrl.isSameOrigin(it.thumb)) {
                 thumb = el('img', 'mago-entity-thumb');
                 thumb.src = safeHref(it.thumb);
                 thumb.alt = '';
@@ -1675,7 +1673,11 @@ define([], function () {
 
     // Render a JSON string (a ```mago fenced block) to HTML, or null when it
     // is not a valid spec. Used by the markdown renderer, which needs a string.
-    function renderJson(json) {
+    // resolveUrls, when given, maps the parsed spec before it is built: the
+    // markdown renderer uses it to turn admin URL tokens into the URLs they
+    // stand for. Every other token is built as it is and becomes its value, as
+    // text, once the answer is rendered.
+    function renderJson(json, resolveUrls) {
         var spec;
         try {
             spec = JSON.parse(json);
@@ -1686,6 +1688,9 @@ define([], function () {
             } catch (e2) {
                 return null;
             }
+        }
+        if (typeof resolveUrls === 'function') {
+            spec = resolveUrls(spec);
         }
         var specs = Array.isArray(spec) ? spec : [spec];
         var wrap = el('div', 'mago-answer');

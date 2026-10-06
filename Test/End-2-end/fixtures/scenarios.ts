@@ -307,6 +307,66 @@ const widgetAnswerJson = (json: string): ChatScenario => ({
     ],
 })
 
+/* One answer of plain markdown, the way a prompt-injected model would write it. */
+export const markdownAnswer = (markdown: string): ChatScenario => ({
+    stream: [
+        { event: 'conversation', data: { conversation_id: CONVERSATION_ID, admin_user: 'Tester' } },
+        { event: 'text', data: { text: markdown } },
+        {
+            event: 'done',
+            data: { message_id: MESSAGE_ID, conversation_id: CONVERSATION_ID, pending_confirmation: false },
+        },
+    ],
+})
+
+/* An answer whose privacy tokens arrive the way the server sends them: intact in the text, with
+   the value behind each one beside it, for the panel to put in as text. A token split across two
+   deltas never happens (the server holds a partial one back), so each delta carries whole ones. */
+export const vaultAnswer = (deltas: string[], tokens: Record<string, string>): ChatScenario => ({
+    stream: [
+        { event: 'conversation', data: { conversation_id: CONVERSATION_ID, admin_user: 'Tester' } },
+        ...deltas.map((text) => ({ event: 'text', data: { text, tokens } })),
+        {
+            event: 'done',
+            data: { message_id: MESSAGE_ID, conversation_id: CONVERSATION_ID, pending_confirmation: false },
+        },
+    ],
+})
+
+/* stageFieldChange, with a field value of the caller's choosing. */
+export const stageFieldValue = (value: string): ChatScenario => {
+    const input = {
+        action: 'write_fields',
+        form_namespace: 'product_form',
+        entity_id: '42',
+        store_id: '',
+        changes: [{ path: 'data.product.name', value }],
+    };
+
+    return {
+        ...stageFieldChange,
+        stream: [
+            { event: 'conversation', data: { conversation_id: CONVERSATION_ID, admin_user: 'Tester' } },
+            ...textDeltas('I will update the product name for you. '),
+            { event: 'tool_call', data: { id: 'toolu_write_fields_1', name: 'page_form', input } },
+            {
+                event: 'confirm',
+                data: {
+                    tools: [{
+                        name: 'page_form',
+                        description: 'Read and write the admin form currently open in the browser',
+                        input,
+                    }],
+                },
+            },
+            {
+                event: 'done',
+                data: { message_id: MESSAGE_ID, conversation_id: CONVERSATION_ID, pending_confirmation: true },
+            },
+        ],
+    };
+}
+
 /* Two writes in one turn: a config value the summary line used to leave out entirely, and CMS
    content whose markup only starts after the first forty characters the summary showed. */
 export const BATCH_CONFIG_VALUE = 'https://batch-e2e.example.com/';

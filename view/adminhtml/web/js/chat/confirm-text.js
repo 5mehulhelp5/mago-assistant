@@ -7,8 +7,8 @@
  *
  * These read the live form rather than the tool input on purpose: showing what is on the form
  * right now is what makes the card a review rather than a replay of a value the model may have
- * seen several turns ago. Values reach innerHTML through marked, so everything that came from the
- * store or the model is escaped here first.
+ * seen several turns ago. A value comes from the store or the model, so the card is built as DOM
+ * with every value in a text node: whatever markdown or HTML a value holds is shown as it is.
  *
  * The bridge is passed as a getter, not a value: the panel loads form-bridge asynchronously, so a
  * reference captured at construction time would still be null when these run.
@@ -21,8 +21,19 @@ define([], function () {
         var entityLabel = translator.entityLabel;
         var describeEntity = translator.describeEntity;
         var fieldCountText = translator.fieldCountText;
-        var escapeForMarkdown = text.escapeForMarkdown;
-        var codeSpan = text.codeSpan;
+
+    // children: strings become text nodes, nodes are appended as they are.
+    function element(tagName, children) {
+        const node = document.createElement(tagName);
+        children.forEach(function (child) {
+            node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
+        });
+        return node;
+    }
+
+    function valueCode(value) {
+        return element('code', [value === null || typeof value === 'undefined' ? '' : String(value)]);
+    }
 
     // The old value is deliberately not part of the tool input (task 006): looking it up here,
     // through form-bridge, shows what is on the form right now rather than replaying a value the
@@ -54,19 +65,19 @@ define([], function () {
 
     function describeLiveForm(live) {
         var text = describeEntity(live.entityType, live.entityId);
-        if (live.storeId) text += ' (' + t('store view %1', escapeForMarkdown(live.storeId)) + ')';
+        if (live.storeId) text += ' (' + t('store view %1', live.storeId) + ')';
         return text;
     }
 
     function formatFieldChangeLine(change, live) {
         var field = findLiveField(change.path, live);
-        if (!field) return escapeForMarkdown(change.path) + ': ' + codeSpan(change.value);
-        var previous = field.redacted ? t('(hidden)') : codeSpan(field.value);
-        return escapeForMarkdown(field.label) + ': ' + previous + ' → ' + codeSpan(change.value);
+        if (!field) return element('li', [String(change.path), ': ', valueCode(change.value)]);
+        var previous = field.redacted ? t('(hidden)') : valueCode(field.value);
+        return element('li', [String(field.label), ': ', previous, ' → ', valueCode(change.value)]);
     }
 
-    // The same "Label: old → new" as data rather than markdown, for a card that sets every value
-    // with textContent. Labels and values are raw here: escaping is the builder's job.
+    // The same "Label: old → new" as data, for a card that sets every value with textContent.
+    // Labels and values are raw here: escaping is the builder's job.
     function describeFieldChange(change, live) {
         var field = findLiveField(change.path, live);
         if (!field) return {label: String(change.path), isFromUnknown: true, to: change.value};
@@ -80,14 +91,14 @@ define([], function () {
 
     // The heading says where the values go: the form on screen, another entity, or a New form,
     // in which case the administrator is also told the browser will leave this page, and that
-    // unsaved edits here will be lost when the open form has any.
+    // unsaved edits here will be lost when the open form has any. Returns the heading's paragraphs.
     function formatWriteFieldsHeading(input, changes, live) {
         if (typeof live === 'undefined') live = liveForm();
         var count = fieldCountText(changes.length);
         var notes;
 
         if (!isNavigatingWrite(input, live)) {
-            return t('Stage %1 on %2:', count, live ? describeLiveForm(live) : t('the form on screen'));
+            return [element('p', [t('Stage %1 on %2:', count, live ? describeLiveForm(live) : t('the form on screen'))])];
         }
 
         notes = [t('You will leave this page.')];
@@ -96,8 +107,10 @@ define([], function () {
             notes.push(t('Unsaved edits on %1 will be lost.', describeLiveForm(live)));
         }
 
-        return t('Open %1 and stage %2 there:', describeEntity(input.entity_type, input.entity_id), count)
-            + '\n\n**' + notes.join(' ') + '**\n';
+        return [
+            element('p', [t('Open %1 and stage %2 there:', describeEntity(input.entity_type, input.entity_id), count)]),
+            element('p', [element('strong', [notes.join(' ')])])
+        ];
     }
 
     // Every field is listed: a write the admin approves must not hide any of what it writes, so a
@@ -107,43 +120,45 @@ define([], function () {
         var changes = input.changes || [];
         // One snapshot for the whole card; the heading and every line share it.
         var live = liveForm();
-        var lines = changes.map(function(change) { return '- ' + formatFieldChangeLine(change, live); });
+        var lines = changes.map(function(change) { return formatFieldChangeLine(change, live); });
 
-        return formatWriteFieldsHeading(input, changes, live) + '\n' + lines.join('\n')
-            + '\n\n' + formatWriteFieldsFooter();
+        return element('div', formatWriteFieldsHeading(input, changes, live).concat([
+            element('ul', lines),
+            element('p', [formatWriteFieldsFooter()])
+        ]));
     }
 
-    // The sentence above the field list on the panel's form-write card, as markdown.
+    // The sentences above the field list on the panel's form-write card.
     function formatWriteFieldsIntro(tool) {
         var input = tool.input || {};
-        return t('I want to perform the following action:') + '\n\n'
-            + formatWriteFieldsHeading(input, input.changes || []);
+        return element('div', [element('p', [t('I want to perform the following action:')])]
+            .concat(formatWriteFieldsHeading(input, input.changes || [])));
     }
 
     function formatWriteFieldsFooter() {
         return t('Nothing is saved until you click Save on the page.');
     }
 
+    function formatToolParameters(input) {
+        return Object.keys(input).reduce(function(children, k, index) {
+            var value = input[k];
+            if (value !== null && typeof value === 'object') { value = JSON.stringify(value); }
+            return children.concat([index === 0 ? ': ' : ', ', k + ': ', valueCode(value)]);
+        }, []);
+    }
+
     function formatToolConfirmMessage(tool) {
         if (tool.name === 'page_form' && tool.input && tool.input.action === 'write_fields') {
             return formatWriteFieldsConfirmMessage(tool);
         }
-        var line = '**' + escapeForMarkdown(tool.name) + '**';
-        if (tool.input) {
-            var params = Object.keys(tool.input).map(function(k) {
-                var value = tool.input[k];
-                if (value !== null && typeof value === 'object') { value = JSON.stringify(value); }
-                return escapeForMarkdown(k) + ': ' + codeSpan(value);
-            });
-            if (params.length) line += ': ' + params.join(', ');
-        }
-        return line;
+        return element('p', [element('strong', [String(tool.name)])].concat(formatToolParameters(tool.input || {})));
     }
 
     function formatConfirmMessage(tools) {
-        if (!tools || !tools.length) return t('I want to perform an action. Allow this?');
-        var parts = tools.map(formatToolConfirmMessage);
-        return t('I want to perform the following action:') + '\n\n' + parts.join('\n') + '\n\n' + t('Allow this?');
+        if (!tools || !tools.length) return element('p', [t('I want to perform an action. Allow this?')]);
+        return element('div', [element('p', [t('I want to perform the following action:')])]
+            .concat(tools.map(formatToolConfirmMessage))
+            .concat([element('p', [t('Allow this?')])]));
     }
 
     // The model's own reply is generated before the browser has applied anything (Confirm.php
@@ -165,7 +180,7 @@ define([], function () {
     }
 
     function failedLabels(result) {
-        return result.failed.map(function (f) { return escapeForMarkdown(f.label); }).join(', ');
+        return result.failed.map(function (f) { return String(f.label); }).join(', ');
     }
 
     function formatApplyOutcomeMessage(result) {

@@ -24,6 +24,23 @@ final class FakeConversationRepository implements ConversationRepositoryInterfac
     /** @var array<int, int> Seconds since each message was written */
     private array $ages = [];
 
+    /**
+     * @param array<int, array<string, mixed>> $conversations Keyed by conversation id
+     * @param array<int, list<array<string, mixed>>> $messages A test's starting messages, keyed by conversation id
+     */
+    public function __construct(array $conversations = [], array $messages = [])
+    {
+        $this->conversations = $conversations;
+        foreach ($messages as $conversationId => $conversationMessages) {
+            foreach ($conversationMessages as $message) {
+                $messageId = count($this->messages) + 1;
+                // Kept as the test wrote it, apart from where it belongs
+                $this->messages[$messageId] = $message + ['conversation_id' => $conversationId];
+                $this->ages[$messageId] = 0;
+            }
+        }
+    }
+
     public function create(int $adminUserId, string $title = 'New Chat'): int
     {
         $conversationId = count($this->conversations) + 1;
@@ -50,7 +67,7 @@ final class FakeConversationRepository implements ConversationRepositoryInterfac
     public function getByIdForUser(int $conversationId, int $adminUserId): array
     {
         $conversation = $this->getById($conversationId);
-        if ($conversation['admin_user_id'] !== $adminUserId) {
+        if ((int)($conversation['admin_user_id'] ?? 0) !== $adminUserId) {
             throw new ConversationNotFoundException('Conversation not found: ' . $conversationId);
         }
 
@@ -61,13 +78,17 @@ final class FakeConversationRepository implements ConversationRepositoryInterfac
     {
         return array_values(array_filter(
             $this->conversations,
-            static fn (array $conversation): bool => $conversation['admin_user_id'] === $adminUserId
+            static fn (array $conversation): bool => (int)($conversation['admin_user_id'] ?? 0) === $adminUserId
         ));
     }
 
     public function delete(int $conversationId, ?int $adminUserId = null): void
     {
         unset($this->conversations[$conversationId]);
+        $this->messages = array_filter(
+            $this->messages,
+            static fn (array $message): bool => $message['conversation_id'] !== $conversationId
+        );
     }
 
     public function addMessage(

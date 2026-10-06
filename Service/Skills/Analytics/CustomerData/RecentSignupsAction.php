@@ -74,7 +74,7 @@ class RecentSignupsAction implements ActionInterface
             'email' => [PiiClass::TOKENISE, 'email'],
             'telephone' => [PiiClass::TOKENISE, 'phone'],
             'country' => [PiiClass::PUBLIC],
-            'city' => [PiiClass::PUBLIC],
+            'city' => [PiiClass::TOKENISE, 'city'],
             'group_id' => [PiiClass::PUBLIC],
             'registered' => [PiiClass::PUBLIC],
             'store_id' => [PiiClass::PUBLIC],
