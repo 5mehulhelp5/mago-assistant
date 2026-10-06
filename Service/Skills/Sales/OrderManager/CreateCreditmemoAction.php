@@ -13,6 +13,8 @@ use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
 
 class CreateCreditmemoAction implements IrreversibleActionInterface
 {
+    private const ADJUSTMENTS = ['adjustment_positive', 'adjustment_negative'];
+
     public function __construct(
         private readonly InternalApiClientInterface $apiClient,
         private readonly SecureAdminUrl $secureAdminUrl,
@@ -142,14 +144,9 @@ class CreateCreditmemoAction implements IrreversibleActionInterface
             'notify' => $notify,
         ];
 
-        $adjustmentPositive = $params['adjustment_positive'] ?? null;
-        if ($adjustmentPositive !== null) {
-            $body['adjustment_positive'] = (float)$adjustmentPositive;
-        }
-
-        $adjustmentNegative = $params['adjustment_negative'] ?? null;
-        if ($adjustmentNegative !== null) {
-            $body['adjustment_negative'] = (float)$adjustmentNegative;
+        $arguments = $this->getAdjustments($params);
+        if ($arguments !== []) {
+            $body['arguments'] = $arguments;
         }
 
         $comment = $params['comment'] ?? '';
@@ -178,5 +175,23 @@ class CreateCreditmemoAction implements IrreversibleActionInterface
             'order_number' => $order['increment_id'],
             'admin_url' => $this->secureAdminUrl->getUrl('sales/order/view', ['order_id' => $entityId]),
         ];
+    }
+
+    /**
+     * RefundOrderInterface::execute() takes the adjustments inside its $arguments
+     * (CreditmemoCreationArgumentsInterface); sent next to "notify" they are silently dropped.
+     *
+     * @param array<string, mixed> $params
+     * @return array<string, float>
+     */
+    private function getAdjustments(array $params): array
+    {
+        return array_map(
+            static fn (mixed $amount): float => (float)$amount,
+            array_filter(
+                array_intersect_key($params, array_flip(self::ADJUSTMENTS)),
+                static fn (mixed $amount): bool => $amount !== null
+            )
+        );
     }
 }
