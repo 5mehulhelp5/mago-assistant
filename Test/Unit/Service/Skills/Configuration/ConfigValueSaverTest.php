@@ -11,6 +11,7 @@ use Magento\Config\Model\Config\Backend\Image;
 use Magento\Config\Model\Config\Reader\Source\Deployed\SettingChecker;
 use Magento\Config\Model\ConfigFactory;
 use Magento\Config\Model\PreparedValueFactory;
+use Magento\Config\Model\ResourceModel\Config\Data as ConfigValueResource;
 use Magento\Framework\App\Config\Value;
 use Magento\Framework\App\Config\ValueInterface;
 use Magento\Framework\Exception\LocalizedException;
@@ -27,27 +28,29 @@ class ConfigValueSaverTest extends TestCase
     #[Test]
     public function itSavesThroughTheFieldsBackendModelInTheNamedStoreView(): void
     {
-        $backendModel = $this->createMock(Value::class);
-        $backendModel->expects(self::once())->method('save');
+        $backendModel = $this->createStub(Value::class);
+        $resource = $this->createMock(ConfigValueResource::class);
+        $resource->expects(self::once())->method('save')->with($backendModel);
         $factory = $this->createMock(PreparedValueFactory::class);
         $factory->expects(self::once())->method('create')
             ->with('web/secure/base_url', 'https://shop.test/', 'stores', 'nl')
             ->willReturn($backendModel);
 
-        $this->saverWith($factory)->save('web/secure/base_url', 'https://shop.test/', 'stores', 2);
+        $this->saverWith($factory, resource: $resource)->save('web/secure/base_url', 'https://shop.test/', 'stores', 2);
     }
 
     #[Test]
     public function itSavesInTheNamedWebsite(): void
     {
-        $backendModel = $this->createMock(Value::class);
-        $backendModel->expects(self::once())->method('save');
+        $backendModel = $this->createStub(Value::class);
+        $resource = $this->createMock(ConfigValueResource::class);
+        $resource->expects(self::once())->method('save')->with($backendModel);
         $factory = $this->createMock(PreparedValueFactory::class);
         $factory->expects(self::once())->method('create')
             ->with('web/secure/base_url', 'https://shop.test/', 'websites', 'base')
             ->willReturn($backendModel);
 
-        $this->saverWith($factory)->save('web/secure/base_url', 'https://shop.test/', 'websites', 1);
+        $this->saverWith($factory, resource: $resource)->save('web/secure/base_url', 'https://shop.test/', 'websites', 1);
     }
 
     /**
@@ -57,8 +60,9 @@ class ConfigValueSaverTest extends TestCase
     #[Test]
     public function itSavesASystemXmlFieldThroughTheConfigurationModelInTheNamedScope(): void
     {
-        $backendModel = $this->createMock(Value::class);
-        $backendModel->expects(self::never())->method('save');
+        $backendModel = $this->createStub(Value::class);
+        $resource = $this->createMock(ConfigValueResource::class);
+        $resource->expects(self::never())->method('save');
         $factory = $this->createStub(PreparedValueFactory::class);
         $factory->method('create')->willReturn($backendModel);
         $config = $this->createMock(Config::class);
@@ -72,7 +76,7 @@ class ConfigValueSaverTest extends TestCase
         $structure = (new FakeConfigStructure())
             ->withFieldStoredAt('payment_us/paypal_group/merchant_country', 'paypal/general/merchant_country');
 
-        $this->saverWith($factory, [], $structure, $configFactory)
+        $this->saverWith($factory, [], $structure, $configFactory, $resource)
             ->save('paypal/general/merchant_country', 'NL', 'websites', 1);
     }
 
@@ -127,15 +131,15 @@ class ConfigValueSaverTest extends TestCase
     #[Test]
     public function itRefusesAFileFieldThatWouldClearItselfWithoutAnUpload(): void
     {
-        $image = $this->createMock(Image::class);
-        $image->expects(self::never())->method('save');
+        $resource = $this->createMock(ConfigValueResource::class);
+        $resource->expects(self::never())->method('save');
         $factory = $this->createMock(PreparedValueFactory::class);
-        $factory->method('create')->willReturn($image);
+        $factory->method('create')->willReturn($this->createStub(Image::class));
 
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('uploaded file');
 
-        $this->saverWith($factory)->save('sales/identity/logo', 'logo.png', 'default', 0);
+        $this->saverWith($factory, resource: $resource)->save('sales/identity/logo', 'logo.png', 'default', 0);
     }
 
     #[Test]
@@ -156,7 +160,8 @@ class ConfigValueSaverTest extends TestCase
         PreparedValueFactory $factory,
         array $locked = [],
         ?FakeConfigStructure $structure = null,
-        ?ConfigFactory $configFactory = null
+        ?ConfigFactory $configFactory = null,
+        ?ConfigValueResource $resource = null
     ): ConfigValueSaver {
         $checker = $this->createStub(SettingChecker::class);
         $checker->method('isReadOnly')->willReturnCallback(
@@ -176,7 +181,8 @@ class ConfigValueSaverTest extends TestCase
             $checker,
             $storeManager,
             $structure ?? new FakeConfigStructure(),
-            $configFactory ?? $this->createStub(ConfigFactory::class)
+            $configFactory ?? $this->createStub(ConfigFactory::class),
+            $resource ?? $this->createStub(ConfigValueResource::class)
         );
     }
 }

@@ -11,6 +11,7 @@ use Magento\Config\Model\Config\Reader\Source\Deployed\SettingChecker;
 use Magento\Config\Model\Config\Structure;
 use Magento\Config\Model\ConfigFactory;
 use Magento\Config\Model\PreparedValueFactory;
+use Magento\Config\Model\ResourceModel\Config\Data as ConfigValueResource;
 use Magento\Framework\App\Config\Value;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Store\Model\StoreManagerInterface;
@@ -39,7 +40,8 @@ class ConfigValueSaver
         private readonly SettingChecker $settingChecker,
         private readonly StoreManagerInterface $storeManager,
         private readonly Structure $structure,
-        private readonly ConfigFactory $configFactory
+        private readonly ConfigFactory $configFactory,
+        private readonly ConfigValueResource $configValueResource
     ) {
     }
 
@@ -74,7 +76,7 @@ class ConfigValueSaver
 
         $structurePath = $this->structure->getFieldPaths()[$path][0] ?? null;
         if ($structurePath === null) {
-            $backendModel->save();
+            $this->configValueResource->save($backendModel);
 
             return;
         }
