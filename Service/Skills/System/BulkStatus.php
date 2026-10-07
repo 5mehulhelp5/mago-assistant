@@ -10,7 +10,7 @@ use InvalidArgumentException;
 use Magento\Framework\Bulk\OperationInterface;
 use Magento\Framework\Serialize\Serializer\Json;
 use MagoAssistant\Mago\Api\Tool\ToolInterface;
-use MagoAssistant\Mago\Service\Api\InternalApiClient;
+use MagoAssistant\Mago\Api\InternalApiClientInterface;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
 
 class BulkStatus implements ToolInterface
@@ -24,7 +24,7 @@ class BulkStatus implements ToolInterface
     ];
 
     public function __construct(
-        private readonly InternalApiClient $apiClient,
+        private readonly InternalApiClientInterface $apiClient,
         private readonly Json $json
     ) {
     }

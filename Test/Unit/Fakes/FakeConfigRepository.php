@@ -11,9 +11,7 @@ use MagoAssistant\Mago\Api\Config\RepositoryInterface;
 
 class FakeConfigRepository implements RepositoryInterface
 {
-    private bool $isInternalSslVerifyEnabled = true;
     private bool $addonFeedEnabled = true;
-    private string $internalUrl = '';
     private int $maxToolIterations = 0;
     private int $customerNotificationInterval = 0;
     private bool $answerWidgets = false;    private int $maxResponseTokens = 0;
@@ -67,29 +65,6 @@ class FakeConfigRepository implements RepositoryInterface
     public function isAnswerWidgetsEnabled(): bool
     {
         return $this->answerWidgets;
-    }
-    public function withInternalSslVerifyEnabled(bool $isEnabled): self
-    {
-        $this->isInternalSslVerifyEnabled = $isEnabled;
-
-        return $this;
-    }
-
-    public function withInternalUrl(string $internalUrl): self
-    {
-        $this->internalUrl = $internalUrl;
-
-        return $this;
-    }
-
-    public function isInternalSslVerifyEnabled(): bool
-    {
-        return $this->isInternalSslVerifyEnabled;
-    }
-
-    public function getInternalUrl(): string
-    {
-        return $this->internalUrl;
     }
 
     public function getExtensionVersion(): string

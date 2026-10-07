@@ -12,7 +12,7 @@ use MagoAssistant\Mago\Api\Config\RepositoryInterface as ConfigRepository;
 use MagoAssistant\Mago\Api\Tool\ActionScopedToolInterface;
 use MagoAssistant\Mago\Api\Tool\UpfrontGuidanceToolInterface;
 use MagoAssistant\Mago\Api\Tool\ValidatingToolInterface;
-use MagoAssistant\Mago\Service\Api\InternalApiClient;
+use MagoAssistant\Mago\Api\InternalApiClientInterface;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
 
 class IndexerManager implements ActionScopedToolInterface, UpfrontGuidanceToolInterface, ValidatingToolInterface
@@ -55,7 +55,7 @@ class IndexerManager implements ActionScopedToolInterface, UpfrontGuidanceToolIn
     public function __construct(
         private readonly CollectionFactory $indexerCollectionFactory,
         private readonly IndexerRegistry $indexerRegistry,
-        private readonly InternalApiClient $apiClient,
+        private readonly InternalApiClientInterface $apiClient,
         private readonly ConfigRepository $config
     ) {
     }

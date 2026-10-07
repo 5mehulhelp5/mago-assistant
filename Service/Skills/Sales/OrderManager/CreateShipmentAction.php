@@ -7,14 +7,14 @@ declare(strict_types=1);
 namespace MagoAssistant\Mago\Service\Skills\Sales\OrderManager;
 
 use MagoAssistant\Mago\Api\Skill\ConditionallyIrreversibleActionInterface;
-use MagoAssistant\Mago\Service\Api\InternalApiClient;
+use MagoAssistant\Mago\Api\InternalApiClientInterface;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
 use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
 
 class CreateShipmentAction implements ConditionallyIrreversibleActionInterface
 {
     public function __construct(
-        private readonly InternalApiClient $apiClient,
+        private readonly InternalApiClientInterface $apiClient,
         private readonly SecureAdminUrl $secureAdminUrl,
         private readonly OrderResolver $orderResolver,
         private readonly CustomerNotificationGuard $notificationGuard

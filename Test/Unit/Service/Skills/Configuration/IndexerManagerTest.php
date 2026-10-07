@@ -10,9 +10,9 @@ use Magento\Framework\Indexer\IndexerInterface;
 use Magento\Framework\Indexer\IndexerRegistry;
 use Magento\Indexer\Model\Indexer\Collection;
 use Magento\Indexer\Model\Indexer\CollectionFactory;
-use MagoAssistant\Mago\Service\Api\InternalApiClient;
 use MagoAssistant\Mago\Service\Skills\Configuration\IndexerManager;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeConfigRepository;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeInternalApiClient;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -153,7 +153,7 @@ final class IndexerManagerTest extends TestCase
         return new IndexerManager(
             $factory,
             $registry,
-            $this->createStub(InternalApiClient::class),
+            new FakeInternalApiClient(),
             (new FakeConfigRepository())->withReindexAllowed(true)
         );
     }

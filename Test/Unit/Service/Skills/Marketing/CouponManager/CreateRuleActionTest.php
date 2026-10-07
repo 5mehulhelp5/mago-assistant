@@ -6,30 +6,28 @@ declare(strict_types=1);
 
 namespace MagoAssistant\Mago\Test\Unit\Service\Skills\Marketing\CouponManager;
 
-use MagoAssistant\Mago\Service\Api\InternalApiClient;
 use MagoAssistant\Mago\Service\Skills\Marketing\CouponManager\CreateRuleAction;
 use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeInternalApiClient;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class CreateRuleActionTest extends TestCase
 {
     private const ADMIN_USER_ID = 7;
 
-    private InternalApiClient&MockObject $apiClient;
+    private FakeInternalApiClient $apiClient;
 
     protected function setUp(): void
     {
-        $this->apiClient = $this->createMock(InternalApiClient::class);
-        $this->apiClient->method('get')->willReturn([]);
-        $this->apiClient->method('buildSearchCriteria')->willReturn([]);
+        $this->apiClient = (new FakeInternalApiClient())
+            ->withResponse(FakeInternalApiClient::POST, 'salesRules', ['rule_id' => 12]);
     }
 
     private function action(): CreateRuleAction
     {
-        $secureAdminUrl = $this->createMock(SecureAdminUrl::class);
+        $secureAdminUrl = $this->createStub(SecureAdminUrl::class);
         $secureAdminUrl->method('getUrl')->willReturn('https://example.test/admin/rule');
 
         return new CreateRuleAction($this->apiClient, $secureAdminUrl);
@@ -43,22 +41,26 @@ class CreateRuleActionTest extends TestCase
     /**
      * A rejected amount must never reach the create call, not just return an error alongside it.
      */
-    private function expectNoRuleIsCreated(): void
+    private function assertNoRuleIsCreated(): void
     {
-        $this->apiClient->expects(self::never())->method('post');
+        self::assertSame([], $this->apiClient->callsOf(FakeInternalApiClient::POST));
+    }
+
+    private function assertOneRuleIsCreated(): void
+    {
+        self::assertCount(1, $this->apiClient->callsOf(FakeInternalApiClient::POST));
     }
 
     #[Test]
     public function aPercentageOverOneHundredIsRejected(): void
     {
-        $this->expectNoRuleIsCreated();
-
         $result = $this->create(['discount_type' => 'percent', 'discount_amount' => 500]);
 
         self::assertSame(
             'discount_amount must be between 0 and 100 for a percentage discount',
             $result['error'] ?? null
         );
+        $this->assertNoRuleIsCreated();
     }
 
     /**
@@ -80,11 +82,10 @@ class CreateRuleActionTest extends TestCase
     #[DataProvider('discountTypes')]
     public function aNegativeAmountIsRejectedForEveryType(string $discountType): void
     {
-        $this->expectNoRuleIsCreated();
-
         $result = $this->create(['discount_type' => $discountType, 'discount_amount' => -10]);
 
         self::assertSame('discount_amount must be 0 or greater', $result['error'] ?? null);
+        $this->assertNoRuleIsCreated();
     }
 
     /**
@@ -94,11 +95,10 @@ class CreateRuleActionTest extends TestCase
     #[Test]
     public function zeroPercentIsStillAllowedAsMagentoAllowsIt(): void
     {
-        $this->apiClient->expects(self::once())->method('post')->willReturn(['rule_id' => 12]);
-
         $result = $this->create(['discount_type' => 'percent', 'discount_amount' => 0]);
 
         self::assertArrayNotHasKey('error', $result);
+        $this->assertOneRuleIsCreated();
     }
 
     /**
@@ -107,22 +107,20 @@ class CreateRuleActionTest extends TestCase
     #[Test]
     public function anUnrecognisedDiscountTypeIsBoundedAsAPercentage(): void
     {
-        $this->expectNoRuleIsCreated();
-
         $result = $this->create(['discount_type' => 'nonsense', 'discount_amount' => 500]);
 
         self::assertArrayHasKey('error', $result);
+        $this->assertNoRuleIsCreated();
     }
 
     #[Test]
     public function oneHundredPercentOffIsStillAllowed(): void
     {
-        $this->apiClient->expects(self::once())->method('post')->willReturn(['rule_id' => 12]);
-
         $result = $this->create(['discount_type' => 'percent', 'discount_amount' => 100]);
 
         self::assertArrayNotHasKey('error', $result);
         self::assertSame(12, $result['rule_id']);
+        $this->assertOneRuleIsCreated();
     }
 
     /**
@@ -132,21 +130,19 @@ class CreateRuleActionTest extends TestCase
     #[Test]
     public function freeShippingIsNotBoundedByThePercentageRange(): void
     {
-        $this->apiClient->expects(self::once())->method('post')->willReturn(['rule_id' => 12]);
-
         $result = $this->create(['discount_type' => 'free_shipping', 'discount_amount' => 0]);
 
         self::assertArrayNotHasKey('error', $result);
+        $this->assertOneRuleIsCreated();
     }
 
     #[Test]
     public function aFixedAmountIsNotBoundedByThePercentageRange(): void
     {
-        $this->apiClient->expects(self::once())->method('post')->willReturn(['rule_id' => 12]);
-
         $result = $this->create(['discount_type' => 'fixed', 'discount_amount' => 500]);
 
         self::assertArrayNotHasKey('error', $result);
+        $this->assertOneRuleIsCreated();
     }
 
     #[Test]

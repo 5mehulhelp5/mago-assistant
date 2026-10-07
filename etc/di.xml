@@ -4,6 +4,32 @@
     <!-- Config Repository -->
     <preference for="MagoAssistant\Mago\Api\Config\RepositoryInterface" type="MagoAssistant\Mago\Model\Config\Repository"/>
 
+    <!--
+        Internal API: tools call web API routes in-process, as the admin user they act for. The guards
+        and follow-ups stand in for the webapi_rest-only plugins a real REST request would have run.
+    -->
+    <preference for="MagoAssistant\Mago\Api\InternalApiClientInterface" type="MagoAssistant\Mago\Service\Api\InternalApiClient"/>
+    <preference for="MagoAssistant\Mago\Service\Api\InProcess\ExceptionMaskerInterface" type="MagoAssistant\Mago\Service\Api\InProcess\ExceptionMasker"/>
+    <preference for="MagoAssistant\Mago\Service\Api\InProcess\ConnectionTransactionInterface" type="MagoAssistant\Mago\Service\Api\InProcess\ConnectionTransaction"/>
+    <preference for="MagoAssistant\Mago\Service\Api\InProcess\AsyncQueueInterface" type="MagoAssistant\Mago\Service\Api\InProcess\WebapiAsyncQueue"/>
+    <!-- Only postAsync() queues; every other call must not build the async scheduler -->
+    <type name="MagoAssistant\Mago\Service\Api\InternalApiClient">
+        <arguments>
+            <argument name="asyncScheduler" xsi:type="object">MagoAssistant\Mago\Service\Api\InProcess\AsyncScheduler\Proxy</argument>
+        </arguments>
+    </type>
+    <type name="MagoAssistant\Mago\Service\Api\InProcess\ServiceDispatcher">
+        <arguments>
+            <argument name="guards" xsi:type="array">
+                <item name="product_design" xsi:type="object">MagoAssistant\Mago\Service\Api\InProcess\Guard\ProductDesignGuard</item>
+                <item name="cms_page_design" xsi:type="object">MagoAssistant\Mago\Service\Api\InProcess\Guard\CmsPageDesignGuard</item>
+            </argument>
+            <argument name="followUps" xsi:type="array">
+                <item name="configurable_stock_index" xsi:type="object">MagoAssistant\Mago\Service\Api\InProcess\FollowUp\ConfigurableStockIndex</item>
+            </argument>
+        </arguments>
+    </type>
+
     <!-- Chat Service -->
     <preference for="MagoAssistant\Mago\Api\ChatServiceInterface" type="MagoAssistant\Mago\Service\Ai\ChatService"/>
 
@@ -477,6 +503,34 @@
     <type name="MagoAssistant\Mago\Service\Skills\Configuration\ConfigPathAccess">
         <arguments>
             <argument name="structure" xsi:type="object">MagoAssistantMagoAdminhtmlConfigStructure</argument>
+        </arguments>
+    </type>
+    <!-- config_writer saves through the field's backend model, which only the adminhtml structure declares -->
+    <virtualType name="MagoAssistantMagoAdminhtmlConfigStructureFactory" type="Magento\Config\Model\Config\StructureFactory">
+        <arguments>
+            <argument name="instanceName" xsi:type="string">adminhtmlConfigStructure</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="MagoAssistantMagoPreparedValueFactory" type="Magento\Config\Model\PreparedValueFactory">
+        <arguments>
+            <argument name="structureFactory" xsi:type="object">MagoAssistantMagoAdminhtmlConfigStructureFactory</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="MagoAssistantMagoAdminhtmlConfig" type="Magento\Config\Model\Config">
+        <arguments>
+            <argument name="configStructure" xsi:type="object">MagoAssistantMagoAdminhtmlConfigStructure</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="MagoAssistantMagoAdminhtmlConfigFactory" type="Magento\Config\Model\ConfigFactory">
+        <arguments>
+            <argument name="instanceName" xsi:type="string">MagoAssistantMagoAdminhtmlConfig</argument>
+        </arguments>
+    </virtualType>
+    <type name="MagoAssistant\Mago\Service\Skills\Configuration\ConfigValueSaver">
+        <arguments>
+            <argument name="preparedValueFactory" xsi:type="object">MagoAssistantMagoPreparedValueFactory</argument>
+            <argument name="structure" xsi:type="object">MagoAssistantMagoAdminhtmlConfigStructure</argument>
+            <argument name="configFactory" xsi:type="object">MagoAssistantMagoAdminhtmlConfigFactory</argument>
         </arguments>
     </type>
 </config>

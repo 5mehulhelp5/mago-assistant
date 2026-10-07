@@ -123,16 +123,12 @@ address and the user agent `MagoAssistant-Mago`. There is no query string, no st
 no account behind it, which is why the feed is a static file rather than an endpoint that answers
 per installation. With the setting off, nothing is fetched and the panel asks for nothing.
 
-### Internal API URL (Docker / reverse proxy setups)
+### How tools reach Magento
 
-If the module's internal REST API calls fail (e.g. in Docker environments where PHP can't reach itself via the public hostname), configure `Stores > Configuration > Mago Assistant > API Settings > Internal API URL`.
-
-Examples:
-- markshust/docker-magento: `https://app:8443`
-- DDEV: `https://ddev-<project>-web:443`
-- Leave empty to use the store's base URL (works for most setups)
-
-These calls verify the TLS certificate by default. If the internal URL points at a host whose certificate cannot match (loopback addresses, container hostnames, self-signed certificates), set `Verify TLS Certificate` to No. Keep it enabled in production.
+Tools run Magento's web API routes inside the PHP process that handles the chat, as the admin who is
+chatting: the route's ACL resources are checked against that admin's role, and nothing goes over
+HTTP. There is no internal URL to configure and no admin token is created. The former `Internal API
+URL` and `Verify TLS Certificate` settings are removed, along with their saved values.
 
 ## Built-in Skills
 

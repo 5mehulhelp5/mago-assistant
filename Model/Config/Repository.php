@@ -179,16 +179,6 @@ class Repository extends System\BaseRepository implements ConfigRepositoryInterf
         return $this->isSetFlag(self::XML_PATH_ANSWER_WIDGETS);
     }
 
-    public function getInternalUrl(): string
-    {
-        return trim((string)$this->getStoreValue(self::XML_PATH_INTERNAL_URL));
-    }
-
-    public function isInternalSslVerifyEnabled(): bool
-    {
-        return $this->isSetFlag(self::XML_PATH_INTERNAL_SSL_VERIFY);
-    }
-
     public function isAddonFeedEnabled(): bool
     {
         return $this->isSetFlag(self::XML_PATH_ADDONS_ENABLED, null, ScopeConfigInterface::SCOPE_TYPE_DEFAULT);

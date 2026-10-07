@@ -8,14 +8,14 @@ namespace MagoAssistant\Mago\Service\Skills\Sales\OrderManager;
 
 use Magento\Sales\Model\ResourceModel\Order\Status\CollectionFactory as StatusCollectionFactory;
 use MagoAssistant\Mago\Api\Skill\ConditionallyIrreversibleActionInterface;
-use MagoAssistant\Mago\Service\Api\InternalApiClient;
+use MagoAssistant\Mago\Api\InternalApiClientInterface;
 use MagoAssistant\Mago\Service\Privacy\PiiClass;
 use MagoAssistant\Mago\Service\Url\SecureAdminUrl;
 
 class UpdateStatusAction implements ConditionallyIrreversibleActionInterface
 {
     public function __construct(
-        private readonly InternalApiClient $apiClient,
+        private readonly InternalApiClientInterface $apiClient,
         private readonly SecureAdminUrl $secureAdminUrl,
         private readonly OrderResolver $orderResolver,
         private readonly StatusCollectionFactory $statusCollectionFactory,
