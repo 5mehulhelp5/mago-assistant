@@ -10,6 +10,7 @@ use Magento\Authorization\Model\UserContextInterface;
 use Magento\Framework\Authorization\PolicyInterface;
 use Magento\Framework\AuthorizationFactory;
 use Magento\Framework\AuthorizationInterface;
+use Magento\Framework\ObjectManager\ResetAfterRequestInterface;
 use Magento\Integration\Model\CustomUserContext;
 use Magento\User\Model\ResourceModel\User\CollectionFactory as UserCollectionFactory;
 use Magento\Webapi\Model\WebapiRoleLocatorFactory;
@@ -22,7 +23,7 @@ use Magento\Webapi\Model\WebapiRoleLocatorFactory;
  * The admin user and their role are looked up once per admin and request: a chat turn makes many calls
  * for the same admin. A refused admin user is not remembered and is looked up again on the next call.
  */
-class AdminAuthorizationFactory
+class AdminAuthorizationFactory implements ResetAfterRequestInterface
 {
     /** @var array<int, AuthorizationInterface> */
     private array $authorizations = [];
@@ -41,6 +42,14 @@ class AdminAuthorizationFactory
     public function create(int $adminUserId): AuthorizationInterface
     {
         return $this->authorizations[$adminUserId] ??= $this->createForActiveAdminUser($adminUserId);
+    }
+
+    /**
+     * @return void
+     */
+    public function _resetState(): void
+    {
+        $this->authorizations = [];
     }
 
     /**

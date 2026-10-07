@@ -65,6 +65,17 @@ final class ProductDesignGuardTest extends TestCase
     }
 
     #[Test]
+    public function itGuardsARouteDeclaredOnTheConcreteRepository(): void
+    {
+        $factory = new FakeProductAuthorizationFactory(true);
+        $route = new ResolvedRoute('Magento\Catalog\Model\ProductRepository', 'save', '/V1/x/products', [], []);
+
+        $this->expectException(DesignChangeRefusedException::class);
+
+        (new ProductDesignGuard($factory))->guard($route, [$this->product()], new FakeAclAuthorization([]));
+    }
+
+    #[Test]
     public function itLeavesOtherRoutesOfTheProductRepositoryAlone(): void
     {
         $factory = new FakeProductAuthorizationFactory(true);

@@ -14,6 +14,7 @@ use MagoAssistant\Mago\Test\Unit\Fakes\FakeAuthorization;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeConfigStructure;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeDesignConfigMetadata;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeEncryptedBackend;
+use MagoAssistant\Mago\Test\Unit\Fakes\FakeEncryptor;
 use MagoAssistant\Mago\Test\Unit\Fakes\FakeObjectManagerConfig;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -222,6 +223,19 @@ final class ConfigPathAccessTest extends TestCase
         self::assertTrue($access->isBlocked('acme/connect/merchant'));
         self::assertTrue($access->isBlocked('acme/connect/account'));
         self::assertFalse($access->isBlocked('acme/connect/label'));
+    }
+
+    #[Test]
+    public function itBlocksAVirtualTypeOfAModulesOwnEncryptingBackend(): void
+    {
+        $access = $this->accessTo(
+            (new FakeConfigStructure())
+                ->withFieldData('acme/connect/vault', ['backend_model' => 'AcmeConnectVaultBackend']),
+            null,
+            new FakeObjectManagerConfig(['AcmeConnectVaultBackend' => FakeEncryptor::class])
+        );
+
+        self::assertTrue($access->isBlocked('acme/connect/vault'));
     }
 
     #[Test]

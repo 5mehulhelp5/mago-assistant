@@ -63,6 +63,17 @@ final class AdminAuthorizationFactoryTest extends TestCase
     }
 
     #[Test]
+    public function itLooksTheAdminUpAgainAfterTheRequestIsReset(): void
+    {
+        $this->factory->create(self::EDITOR_ID);
+        $this->factory->_resetState();
+        $this->factory->create(self::EDITOR_ID);
+
+        self::assertSame(2, $this->users->queries());
+        self::assertSame(2, $this->roles->lookups());
+    }
+
+    #[Test]
     public function itKeepsTheAclsOfDifferentAdminsApart(): void
     {
         $editor = $this->factory->create(self::EDITOR_ID);

@@ -233,7 +233,7 @@ final class ConfigPathAccess
 
         return !class_exists($backendClass)
             || is_a($backendClass, Encrypted::class, true)
-            || str_contains(strtolower($backendModel), 'encrypt');
+            || str_contains(strtolower($backendModel . ' ' . $backendClass), 'encrypt');
     }
 
     /**
